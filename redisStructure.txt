@@ -1,0 +1,22 @@
+  ### 🏛️ Architecture & Directory Overview                                                                                                                                 
+                                                                                                                                                                           
+    src/                                                                                                                                                                   
+    ├── app/                                                                                                                                                               
+    │   ├── redis/                                                                                                                                                         
+    │   │   ├── redis.config.ts        # Environment mapping & exponential backoff retry strategy                                                                          
+    │   │   ├── redis.client.ts        # Singleton redisClient + dedicated pubClient & subClient                                                                           
+    │   │   ├── redis.constants.ts     # Standard CACHE_TTL and domain cache key builders                                                                                  
+    │   │   ├── redis.service.ts       # Modular RedisService (Object Pattern: get, set, del, delByPattern, Sets)                                                          
+    │   │   ├── cache.middleware.ts    # Declarative route caching & auto-invalidation middlewares                                                                         
+    │   │   ├── redis.test.ts          # End-to-end integration test runner                                                                                                
+    │   │   └── index.ts               # Barrel exports                                                                                                                    
+    │   └── modules/                                                                                                                                                       
+    │       └── user/                                                                                                                                                      
+    │           ├── user.route.ts      # Route layer                                                                                                                       
+    │           ├── user.controller.ts # Controller (req/res only with catchAsync & sendResponse)                                                                          
+    │           ├── user.service.ts    # Service (business logic, lean() fetch, 300s TTL, auto-invalidation)                                                               
+    │           ├── user.models.ts     # Mongoose Model                                                                                                                    
+    │           ├── user.interface.ts  # TypeScript interfaces                                                                                                             
+    │           └── user.validation.ts # Zod validations                                                                                                                   
+    ├── socket.ts                      # Socket.IO + Redis Adapter + Redis Sets Presence                                                                                   
+    └── server.ts                      # Unified server bootstrap & graceful shutdown     

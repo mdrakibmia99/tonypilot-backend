@@ -1,0 +1,19 @@
+  #### Chat Endpoints (/api/v1/chats):
+  
+  • POST /api/v1/chats/single — Create or retrieve a direct 1-to-1 conversation.
+  • GET /api/v1/chats/:chatId — Fetch chat details by ID.
+  • POST /api/v1/chats/group — Create a new group chat.
+  • GET /api/v1/chats — Fetch all conversations (Messenger-style, with online presence).
+  • PATCH /api/v1/chats/:chatId/clear — Clear full conversation history for current user.
+  • PATCH /api/v1/chats/:chatId/group — Update group name / avatar (Admin only).
+  • PATCH /api/v1/chats/:chatId/group/add-member — Add participant (Admin only).
+  • PATCH /api/v1/chats/:chatId/group/remove-member — Remove participant (Admin or self-leave).
+  
+
+  #### Message Endpoints (/api/v1/messages):
+  
+  • POST /api/v1/messages — Send a new message (text or media attachments).
+  • GET /api/v1/messages/:chatId?cursor=<messageId>&limit=20 — Cursor-based pagination.
+  • PATCH /api/v1/messages/:messageId/everyone — Delete message for everyone.
+  • PATCH /api/v1/messages/:messageId/me — Delete message for current user only.
+  ──────
