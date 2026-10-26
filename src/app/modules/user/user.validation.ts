@@ -16,7 +16,25 @@ const userValidationForGoogleSchema = z.object({
 });
 
 
+export const AddressValidationSchema = z.object({
+  address: z.string().default(""),
 
+  location: z
+    .object({
+      type: z.literal("Point").default("Point"),
+
+      coordinates: z
+        .tuple([
+          z.number().min(-180).max(180), // Longitude
+          z.number().min(-90).max(90), // Latitude
+        ])
+        .default([0, 0]),
+    })
+    .default({
+      type: "Point",
+      coordinates: [0, 0],
+    }),
+});
 
 
 
@@ -33,6 +51,8 @@ const updateProfileSchema = z.object({
         number: z.string().min(6, 'Phone number is required').optional(),
       })
       .optional(),
+      address: AddressValidationSchema.optional(),
+
     dob: z.string({ message: 'Date of birth is required' }).optional(),
     gender: z.enum(['male', 'female', 'other']).optional(),
   }),

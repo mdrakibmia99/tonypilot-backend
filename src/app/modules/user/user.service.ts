@@ -376,7 +376,7 @@ const getUserById = async (id: string) => {
 // Optimized the function with Redis caching (Configurable TTL: 10 minutes)
 const getMyProfile = async (id: string, fields?: string) => {
   // ✅ Default fields to include when no 'fields' query param is provided
-  const defaultFields = ['dob', 'gender', 'phone', 'address', 'profileImage', 'bio', 'role', 'email', 'fullName'];
+  const defaultFields = ['dob', 'gender', 'phone', 'address', 'profileImage', 'bio', 'role', 'email', 'fullName','address', 'isPhoneVerified', 'about', 'subscriptionExpiresAt', 'scriptGeneratedCount'];
 
   // ✅ Determine which fields to select
   const selectFields = fields
