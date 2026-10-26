@@ -41,6 +41,23 @@ export interface TUser {
   subscriptionExpiresAt?: Date | null;
   scriptGeneratedCount?: number;
 
+  // Subscription & Billing fields
+  subscriptionTier?: 'free' | 'premium' | 'pro';
+  activeSubscription?: Types.ObjectId | string | null;
+  stripeCustomerId?: string | null;
+  isSuspended?: boolean;
+  suspendedUntil?: Date | null;
+
+  // Gifting & Community Stats
+  totalGiftsGiven?: number;
+  totalGiftsReceived?: number;
+  totalStreamsHosted?: number;
+  totalStoriesClaimed?: number;
+  neighborhoodLabel?: string;
+  communityTrustScore?: number;
+  agreedToRules?: boolean;
+  agreedToRulesAt?: Date | null;
+
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -71,6 +88,23 @@ export interface TUserCreate {
   lastActiveAt?: Date;
   subscriptionExpiresAt?: Date | null;
   scriptGeneratedCount?: number;
+
+  // Subscription & Billing fields
+  subscriptionTier?: 'free' | 'premium' | 'pro';
+  activeSubscription?: Types.ObjectId | string | null;
+  stripeCustomerId?: string | null;
+  isSuspended?: boolean;
+  suspendedUntil?: Date | null;
+
+  // Gifting & Community Stats
+  totalGiftsGiven?: number;
+  totalGiftsReceived?: number;
+  totalStreamsHosted?: number;
+  totalStoriesClaimed?: number;
+  neighborhoodLabel?: string;
+  communityTrustScore?: number;
+  agreedToRules?: boolean;
+  agreedToRulesAt?: Date | null;
 }
 
 export interface DeleteAccountPayload {

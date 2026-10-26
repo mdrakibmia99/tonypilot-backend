@@ -19,6 +19,7 @@ import { User } from './app/modules/user/user.models';
 import firebaseAdmin from './app/utils/firebase';
 import logger from './app/utils/logger';
 import { registerChatSocketHandlers } from './app/modules/Chat/chat.socket';
+import { registerLiveStreamSocketHandlers } from './app/modules/LiveStream/liveStream.socket';
 
 declare module 'socket.io' {
   interface Socket {
@@ -141,6 +142,7 @@ export const initSocket = (httpServer: HttpServer): SocketIoServer => {
 
     // Register Chat & Messaging real-time event handlers
     registerChatSocketHandlers(io!, socket);
+    registerLiveStreamSocketHandlers(io!, socket);
 
     // =====================
     // Disconnect Handler

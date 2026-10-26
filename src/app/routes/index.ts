@@ -6,10 +6,25 @@ import { notificationRoutes } from '../modules/notifications/notifications.route
 import { adminRoutes } from '../modules/Admin/admin.route';
 import { chatRoutes } from '../modules/Chat/chat.route';
 import { messageRoutes } from '../modules/Message/message.route';
+import { subscriptionRoutes } from '../modules/Subscription/subscription.route';
+import { giftItemRoutes } from '../modules/GiftItem/giftItem.route';
+import { LiveStreamRoutes } from '../modules/LiveStream/liveStream.route';
 
 const router = Router();
 
 const moduleRoutes = [
+  {
+    path: '/live-streams',
+    route: LiveStreamRoutes,
+  },
+  {
+    path: '/gift-items',
+    route: giftItemRoutes,
+  },
+  {
+    path: '/subscriptions',
+    route: subscriptionRoutes,
+  },
   {
     path: '/users',
     route: userRoutes,

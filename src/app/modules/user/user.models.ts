@@ -104,6 +104,40 @@ const userSchema = new Schema<TUser>(
     },
 
     fcmToken: { type: String, default: null },
+    subscriptionTier: {
+      type: String,
+      enum: ['free', 'premium', 'pro'],
+      default: 'free',
+    },
+    activeSubscription: {
+      type: Schema.Types.ObjectId,
+      ref: 'UserSubscription',
+      default: null,
+    },
+    stripeCustomerId: {
+      type: String,
+      default: null,
+    },
+    subscriptionExpiresAt: {
+      type: Date,
+      default: null,
+    },
+    isSuspended: {
+      type: Boolean,
+      default: false,
+    },
+    suspendedUntil: {
+      type: Date,
+      default: null,
+    },
+    totalGiftsGiven: { type: Number, default: 0 },
+    totalGiftsReceived: { type: Number, default: 0 },
+    totalStreamsHosted: { type: Number, default: 0 },
+    totalStoriesClaimed: { type: Number, default: 0 },
+    neighborhoodLabel: { type: String, default: '' },
+    communityTrustScore: { type: Number, default: 50, min: 0, max: 100 },
+    agreedToRules: { type: Boolean, default: false },
+    agreedToRulesAt: { type: Date, default: null },
     lastActiveAt: { type: Date, default: null },
   },
   {
@@ -124,8 +158,9 @@ userSchema.index({
   isBlocked: 1,
   isDeleted: 1,
 });
-userSchema.index({
-  email: 1,
+userSchema.index({ subscriptionTier: 1, isBlocked: 1, isDeleted: 1 });
+userSchema.index({ stripeCustomerId: 1 });
+userSchema.index({ isSuspended: 1, suspendedUntil: 1
 });
 
 

@@ -5,6 +5,7 @@ import { Server as SocketIoServer } from 'socket.io';
 import app from './app';
 import config from './app/config';
 import createDefaultAdmin from './app/db/createDefaultAdmin';
+import { seedDefaultSubscriptionPlans } from './app/db/seedSubscriptionPlans';
 import { initSocket } from './socket';
 import { startScheduler } from './jobs/cornJobSchedule';
 import { connectRedis, disconnectRedis } from './app/redis';
@@ -47,6 +48,7 @@ async function main() {
 
     // 6. Bootstrap default admin and scheduled background tasks
     await createDefaultAdmin();
+    await seedDefaultSubscriptionPlans();
     startScheduler();
     console.log(colors.green('✅ Server bootstrapped successfully').bold);
   } catch (error: any) {

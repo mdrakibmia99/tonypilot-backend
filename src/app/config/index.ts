@@ -30,6 +30,12 @@ const redis = {
   enabled: process.env.REDIS_ENABLED !== 'false',
   key_prefix: process.env.REDIS_KEY_PREFIX || 'tonypilot:',
 };
+const zego = {
+  app_id: Number(process.env.ZEGO_APP_ID) || 123456789,
+  server_secret: process.env.ZEGO_SERVER_SECRET || '12345678901234567890123456789012',
+  callback_secret: process.env.ZEGO_CALLBACK_SECRET || 'tonypilot_zego_callback_secret_2026',
+};
+
 const twilio = {
   account_sid: process.env.TWILIO_ACCOUNT_SID,
   auth_token: process.env.TWILIO_AUTH_TOKEN,
@@ -77,5 +83,6 @@ export default {
   stripe,
   aws,
   redis,
-  twilio
+  twilio,
+  zego
 };
