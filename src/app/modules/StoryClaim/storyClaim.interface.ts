@@ -1,36 +1,34 @@
 import { Model, Types } from 'mongoose';
+import {
+  TStoryClaimStatus,
+  TAdminReviewStatus,
+  TVoteType,
+} from './storyClaim.constants';
 
-export type StoryClaimStatus =
-  | 'pending'
-  | 'pinned'
-  | 'awarded'
-  | 'rejected'
-  | 'withdrawn';
-
-export type AdminReviewStatus =
-  | 'not_reviewed'
-  | 'approved'
-  | 'flagged'
-  | 'removed';
+export interface TStoryClaimVote {
+  voter: Types.ObjectId;
+  voteType: TVoteType;
+}
 
 export interface TLiveStoryClaim {
   _id?: Types.ObjectId | string;
 
-  applicant: Types.ObjectId; // ref -> User
+  applicant: Types.ObjectId; // ref -> User (person requesting the gift)
   stream: Types.ObjectId; // ref -> LiveStream
-  giftItem: Types.ObjectId; // ref -> GiftItem
+  giftItem: Types.ObjectId; // ref -> GiftItem (denormalized for fast queries)
 
   // Story Content
   storyStatement: string;
   storyMediaUrl?: string;
 
   // Status
-  status: StoryClaimStatus;
+  status: TStoryClaimStatus;
 
   // Community Voting
   upvotes: number;
   downvotes: number;
   voterIds: Types.ObjectId[];
+  votes?: TStoryClaimVote[];
 
   // Pinning
   isPinned: boolean;
@@ -40,8 +38,8 @@ export interface TLiveStoryClaim {
   // Award
   awardedAt?: Date | null;
 
-  // Admin
-  adminReviewStatus: AdminReviewStatus;
+  // Admin Review
+  adminReviewStatus: TAdminReviewStatus;
   adminReviewedBy?: Types.ObjectId | null;
   adminReviewNotes?: string;
   adminRemovedAt?: Date | null;

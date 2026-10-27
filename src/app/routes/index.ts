@@ -9,10 +9,24 @@ import { messageRoutes } from '../modules/Message/message.route';
 import { subscriptionRoutes } from '../modules/Subscription/subscription.route';
 import { giftItemRoutes } from '../modules/GiftItem/giftItem.route';
 import { LiveStreamRoutes } from '../modules/LiveStream/liveStream.route';
+import { StoryClaimRoutes } from '../modules/StoryClaim/storyClaim.route';
+import { LiveCommentRoutes, ModerationRoutes } from '../modules/LiveComment/liveComment.route';
 
 const router = Router();
 
 const moduleRoutes = [
+  {
+    path: '/live-comments',
+    route: LiveCommentRoutes,
+  },
+  {
+    path: '/moderation',
+    route: ModerationRoutes,
+  },
+  {
+    path: '/story-claims',
+    route: StoryClaimRoutes,
+  },
   {
     path: '/live-streams',
     route: LiveStreamRoutes,

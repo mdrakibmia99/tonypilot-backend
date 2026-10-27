@@ -1,5 +1,11 @@
 import { Schema, model, Query } from 'mongoose';
 import { TLiveStoryClaim, LiveStoryClaimModel } from './storyClaim.interface';
+import {
+  STORY_CLAIM_STATUS_ENUM,
+  STORY_CLAIM_STATUS,
+  ADMIN_REVIEW_STATUS_ENUM,
+  ADMIN_REVIEW_STATUS,
+} from './storyClaim.constants';
 
 const liveStoryClaimSchema = new Schema<TLiveStoryClaim>(
   {
@@ -32,8 +38,8 @@ const liveStoryClaimSchema = new Schema<TLiveStoryClaim>(
 
     status: {
       type: String,
-      enum: ['pending', 'pinned', 'awarded', 'rejected', 'withdrawn'],
-      default: 'pending',
+      enum: STORY_CLAIM_STATUS_ENUM,
+      default: STORY_CLAIM_STATUS.PENDING,
     },
 
     upvotes: { type: Number, default: 0 },
@@ -44,6 +50,20 @@ const liveStoryClaimSchema = new Schema<TLiveStoryClaim>(
         ref: 'User',
       },
     ],
+    votes: [
+      {
+        voter: {
+          type: Schema.Types.ObjectId,
+          ref: 'User',
+          required: true,
+        },
+        voteType: {
+          type: String,
+          enum: ['upvote', 'downvote'],
+          required: true,
+        },
+      },
+    ],
 
     isPinned: { type: Boolean, default: false },
     pinnedAt: { type: Date, default: null },
@@ -52,8 +72,8 @@ const liveStoryClaimSchema = new Schema<TLiveStoryClaim>(
 
     adminReviewStatus: {
       type: String,
-      enum: ['not_reviewed', 'approved', 'flagged', 'removed'],
-      default: 'not_reviewed',
+      enum: ADMIN_REVIEW_STATUS_ENUM,
+      default: ADMIN_REVIEW_STATUS.NOT_REVIEWED,
     },
     adminReviewedBy: {
       type: Schema.Types.ObjectId,

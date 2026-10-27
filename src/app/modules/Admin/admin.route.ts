@@ -1,13 +1,92 @@
-import { Router } from "express";
-import auth from "../../middleware/auth";
-import { USER_ROLE } from "../user/user.constants";
-import { adminController } from "./admin.controller";
+import { Router } from 'express';
+import auth from '../../middleware/auth';
+import validateRequest from '../../middleware/validateRequest';
+import { USER_ROLE } from '../user/user.constants';
+import { adminValidation } from './admin.validation';
+import { adminController } from './admin.controller';
 
+const router = Router();
 
-export const adminRoutes = Router();
+// ==========================================
+// 1. TELEMETRY & KPIS
+// ==========================================
+router.get(
+  '/dashboard/telemetry',
+  auth(USER_ROLE.ADMIN, USER_ROLE.SUPER_ADMIN),
+  adminController.getTelemetryOverview,
+);
 
-adminRoutes
-    .patch('/block/:id', auth(USER_ROLE.ADMIN, USER_ROLE.SUPER_ADMIN), adminController.blockedUser)
-    .delete('/delete/:id', auth(USER_ROLE.ADMIN, USER_ROLE.SUPER_ADMIN), adminController.deleteUser)
+// ==========================================
+// 2. LIVE STREAM ACTIVE CONTROL ROOM
+// ==========================================
+router.get(
+  '/live-streams/active',
+  auth(USER_ROLE.ADMIN, USER_ROLE.SUPER_ADMIN),
+  adminController.getActiveLiveStreamsControlRoom,
+);
 
+router.patch(
+  '/live-streams/:id/force-terminate',
+  auth(USER_ROLE.ADMIN, USER_ROLE.SUPER_ADMIN),
+  validateRequest(adminValidation.forceTerminateStreamZodSchema),
+  adminController.forceTerminateStream,
+);
 
+router.patch(
+  '/live-streams/:id/mute-host',
+  auth(USER_ROLE.ADMIN, USER_ROLE.SUPER_ADMIN),
+  validateRequest(adminValidation.muteHostZodSchema),
+  adminController.muteHost,
+);
+
+// ==========================================
+// 3. USER MODERATION (WARN, SUSPEND, BAN, UNBAN)
+// ==========================================
+router.patch(
+  '/users/:id/moderation-action',
+  auth(USER_ROLE.ADMIN, USER_ROLE.SUPER_ADMIN),
+  validateRequest(adminValidation.userModerationActionZodSchema),
+  adminController.takeUserModerationAction,
+);
+
+// ==========================================
+// 4. STORIES & CLAIMS AUDIT
+// ==========================================
+router.patch(
+  '/story-claims/:id/review',
+  auth(USER_ROLE.ADMIN, USER_ROLE.SUPER_ADMIN),
+  validateRequest(adminValidation.reviewStoryClaimZodSchema),
+  adminController.reviewStoryClaim,
+);
+
+// ==========================================
+// 5. AUDIT LOGS & REVENUE ANALYTICS
+// ==========================================
+router.get(
+  '/audit-logs',
+  auth(USER_ROLE.ADMIN, USER_ROLE.SUPER_ADMIN),
+  adminController.getAdminAuditLogs,
+);
+
+router.get(
+  '/revenue/analytics',
+  auth(USER_ROLE.ADMIN, USER_ROLE.SUPER_ADMIN),
+  adminController.getRevenueAnalytics,
+);
+
+// ==========================================
+// LEGACY COMPATIBILITY
+// ==========================================
+router.patch(
+  '/block/:id',
+  auth(USER_ROLE.ADMIN, USER_ROLE.SUPER_ADMIN),
+  adminController.blockedUser,
+);
+
+router.delete(
+  '/delete/:id',
+  auth(USER_ROLE.ADMIN, USER_ROLE.SUPER_ADMIN),
+  adminController.deleteUser,
+);
+
+export const adminRoutes = router;
