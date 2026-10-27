@@ -36,7 +36,7 @@ export interface TSubscriptionPlan {
   updatedAt?: Date;
 }
 
-export interface SubscriptionPlanModel extends Model<TSubscriptionPlan> {}
+export type SubscriptionPlanModel = Model<TSubscriptionPlan>;
 
 export interface TUserSubscription {
   _id?: Types.ObjectId | string;
@@ -75,7 +75,7 @@ export interface TUserSubscription {
   updatedAt?: Date;
 }
 
-export interface UserSubscriptionModel extends Model<TUserSubscription> {}
+export type UserSubscriptionModel = Model<TUserSubscription>;
 
 export type TransactionType = 'subscription_payment' | 'subscription_refund' | 'one_time';
 export type TransactionStatus = 'succeeded' | 'failed' | 'pending' | 'refunded';

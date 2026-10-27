@@ -329,8 +329,13 @@ const handleWebhookEvent = async (event: Stripe.Event) => {
           // If mock or disconnected, fallback to invoice dates
         }
 
-        const periodStart = stripeSub ? new Date((stripeSub as any).current_period_start * 1000) : (invoice.period_start ? new Date(invoice.period_start * 1000) : new Date());
-        const periodEnd = stripeSub ? new Date((stripeSub as any).current_period_end * 1000) : (invoice.period_end ? new Date(invoice.period_end * 1000) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000));
+        const periodStartUnix = stripeSub?.current_period_start ?? stripeSub?.start_date ?? invoice.period_start;
+        const periodStart = periodStartUnix ? new Date(periodStartUnix * 1000) : new Date();
+
+        const periodEndUnix = stripeSub?.current_period_end ?? invoice.period_end;
+        const periodEnd = periodEndUnix
+          ? new Date(periodEndUnix * 1000)
+          : new Date(periodStart.getTime() + 30 * 24 * 60 * 60 * 1000);
         const cancelAtPeriodEnd = stripeSub ? stripeSub.cancel_at_period_end : false;
 
         const updatedSub = await UserSubscription.findOneAndUpdate(
@@ -453,8 +458,8 @@ const handleWebhookEvent = async (event: Stripe.Event) => {
         {
           autoRenew: !stripeSub.cancel_at_period_end,
           cancelAtPeriodEnd: stripeSub.cancel_at_period_end,
-          currentPeriodStart: new Date(((stripeSub as any).current_period_start ?? (stripeSub as any).start_date) * 1000),
-          currentPeriodEnd: new Date((stripeSub as any).current_period_end * 1000),
+          currentPeriodStart: new Date(((stripeSub as any).current_period_start ?? (stripeSub as any).start_date ?? Math.floor(Date.now() / 1000)) * 1000),
+          currentPeriodEnd: new Date(((stripeSub as any).current_period_end ?? ((stripeSub as any).start_date ? (stripeSub as any).start_date + 30 * 24 * 60 * 60 : Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60)) * 1000),
           lastWebhookEvent: event.type,
           lastWebhookAt: new Date(),
         },
