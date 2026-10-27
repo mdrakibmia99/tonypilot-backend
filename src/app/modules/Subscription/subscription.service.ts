@@ -361,29 +361,72 @@ const handleWebhookEvent = async (event: Stripe.Event) => {
     case 'invoice.paid':
     case 'invoice.payment_succeeded': {
       const invoice = event.data.object as any;
+      console.log(invoice ,"check invoice==============>")
       if (invoice.subscription) {
+        console.log('check subscription ================')
         const stripeSubId = typeof invoice.subscription === 'string' ? invoice.subscription : invoice.subscription.id;
         
         let stripeSub: any = null;
         try {
           stripeSub = await stripe.subscriptions.retrieve(stripeSubId);
         } catch {
-          // If mock or disconnected, fallback to invoice dates
+          // If mock or disconnected, fallback to existing DB data
         }
 
-        const periodStartUnix = stripeSub?.current_period_start ?? stripeSub?.start_date ?? invoice.period_start;
-        const periodStart = periodStartUnix ? new Date(periodStartUnix * 1000) : new Date();
+        // 1. Fetch existing UserSubscription
+        const existingSub = await UserSubscription.findOne({ stripeSubscriptionId: stripeSubId });
 
-        const periodEndUnix = stripeSub?.current_period_end ?? invoice.period_end;
-        const periodEnd = periodEndUnix
-          ? new Date(periodEndUnix * 1000)
-          : new Date(periodStart.getTime() + 30 * 24 * 60 * 60 * 1000);
-        const cancelAtPeriodEnd = stripeSub ? stripeSub.cancel_at_period_end : false;
+        // 2. Determine billing cycle and duration (monthly = 30 days, yearly = 365 days)
+        const billingCycle = existingSub?.billingCycle || (stripeSub?.items?.data?.[0]?.plan?.interval === 'year' ? 'yearly' : 'monthly');
+        const daysToAdd = billingCycle === 'yearly' ? 365 : 30;
+        const msToAdd = daysToAdd * 24 * 60 * 60 * 1000;
+
+        // 3. Determine period bounds from Stripe (Line items or Subscription items)
+        const linePeriodStart = invoice.lines?.data?.[0]?.period?.start;
+        const linePeriodEnd = invoice.lines?.data?.[0]?.period?.end;
+        const subItemStart = stripeSub?.items?.data?.[0]?.current_period_start ?? stripeSub?.current_period_start;
+        const subItemEnd = stripeSub?.items?.data?.[0]?.current_period_end ?? stripeSub?.current_period_end;
+
+        let periodStart: Date;
+        let periodEnd: Date;
+
+        if (linePeriodEnd && (!linePeriodStart || linePeriodEnd > linePeriodStart)) {
+          // Priority 1: Stripe invoice line item period (most accurate for Stripe Test Clocks)
+          periodEnd = new Date(linePeriodEnd * 1000);
+          periodStart = linePeriodStart ? new Date(linePeriodStart * 1000) : new Date(periodEnd.getTime() - msToAdd);
+        } else if (subItemEnd && (!subItemStart || subItemEnd > subItemStart)) {
+          // Priority 2: Stripe subscription item period
+          periodEnd = new Date(subItemEnd * 1000);
+          periodStart = subItemStart ? new Date(subItemStart * 1000) : new Date(periodEnd.getTime() - msToAdd);
+        } else {
+          // Priority 3: Add daysToAdd to previous currentPeriodEnd
+          let baseTime = Date.now();
+          if (existingSub?.currentPeriodEnd) {
+            const prevTime = new Date(existingSub.currentPeriodEnd).getTime();
+            if (!isNaN(prevTime)) {
+              baseTime = prevTime;
+            }
+          }
+          periodStart = new Date(baseTime);
+          periodEnd = new Date(baseTime + msToAdd);
+        }
+
+        // Guarantees auto-renewal always advances past previous end date:
+        if (existingSub?.currentPeriodEnd) {
+          const prevEndTime = new Date(existingSub.currentPeriodEnd).getTime();
+          if (!isNaN(prevEndTime) && periodEnd.getTime() <= prevEndTime) {
+            periodStart = new Date(prevEndTime);
+            periodEnd = new Date(prevEndTime + msToAdd);
+          }
+        }
+
+        const cancelAtPeriodEnd = stripeSub ? stripeSub.cancel_at_period_end : (existingSub?.cancelAtPeriodEnd ?? false);
 
         const updatedSub = await UserSubscription.findOneAndUpdate(
           { stripeSubscriptionId: stripeSubId },
           {
             status: SUBSCRIPTION_STATUS.ACTIVE,
+            stripeLatestInvoiceId: invoice.id || (stripeSub?.latest_invoice as string) || '',
             autoRenew: !cancelAtPeriodEnd,
             cancelAtPeriodEnd,
             currentPeriodStart: periodStart,
@@ -393,29 +436,43 @@ const handleWebhookEvent = async (event: Stripe.Event) => {
           },
           { new: true }
         );
-
+      console.log(updatedSub,"updatedSub=============>")
         if (updatedSub) {
-          await User.findByIdAndUpdate(updatedSub.user, {
+          // Explicitly update User model's subscriptionExpiresAt
+        const updateUser=  await User.findByIdAndUpdate(updatedSub.user, {
+            subscriptionTier: updatedSub.tier,
             subscriptionExpiresAt: periodEnd,
           });
+          console.log(updateUser,"updateUser================>")
 
-          // Record payment transaction
-          await PaymentTransaction.create({
-            user: updatedSub.user,
-            subscription: updatedSub._id,
-            stripePaymentIntentId: (invoice.payment_intent as string) || `inv_pi_${invoice.id}`,
-            stripeInvoiceId: invoice.id,
-            type: 'subscription_payment',
-            status: 'succeeded',
-            amountInCents: invoice.amount_paid || 0,
-            currency: invoice.currency || 'usd',
-            description: `Automatic renewal for ${updatedSub.tier} tier (${updatedSub.billingCycle})`,
-            metadata: { invoiceId: invoice.id },
-          });
+          // Record payment transaction idempotently
+          const paymentIntentId = (invoice.payment_intent as string) || `inv_pi_${invoice.id}`;
+          console.log(invoice,"invoice=============>")
+          await PaymentTransaction.findOneAndUpdate(
+            { stripePaymentIntentId: paymentIntentId },
+            {
+              $setOnInsert: {
+                user: updatedSub.user,
+                subscription: updatedSub._id,
+                stripePaymentIntentId: paymentIntentId,
+                stripeInvoiceId: invoice.id,
+                type: 'subscription_payment',
+                status: 'succeeded',
+                amountInCents: invoice.amount_paid || invoice.total || 0,
+                currency: invoice.currency || 'usd',
+                description: `Automatic renewal for ${updatedSub.tier} tier (${updatedSub.billingCycle})`,
+                metadata: {
+                  invoiceId: invoice.id,
+                  billingReason: invoice.billing_reason || 'subscription_cycle',
+                },
+              },
+            },
+            { upsert: true, new: true }
+          );
 
           await RedisService.del(`user:${updatedSub.user.toString()}:subscription`);
           await RedisService.del('admin:revenue:summary');
-          logger.info(`[Stripe Webhook] Auto-renewal succeeded for subscription ${stripeSubId}`);
+          logger.info(`[Stripe Webhook] Auto-renewal succeeded for subscription ${stripeSubId}. User ${updatedSub.user} expiresAt updated to: ${periodEnd.toISOString()}`);
         }
       }
       break;
@@ -495,20 +552,92 @@ const handleWebhookEvent = async (event: Stripe.Event) => {
     // -------------------------------------------------------------------------
     case 'customer.subscription.updated': {
       const stripeSub = event.data.object as any;
+      const updateData: any = {
+        autoRenew: !stripeSub.cancel_at_period_end,
+        cancelAtPeriodEnd: stripeSub.cancel_at_period_end,
+        lastWebhookEvent: event.type,
+        lastWebhookAt: new Date(),
+      };
+
+      if (stripeSub.latest_invoice) {
+        updateData.stripeLatestInvoiceId = typeof stripeSub.latest_invoice === 'string'
+          ? stripeSub.latest_invoice
+          : stripeSub.latest_invoice.id;
+      }
+
+      const itemEnd = stripeSub.items?.data?.[0]?.current_period_end ?? stripeSub.current_period_end;
+      const itemStart = stripeSub.items?.data?.[0]?.current_period_start ?? stripeSub.current_period_start;
+
+      if (itemStart) {
+        updateData.currentPeriodStart = new Date(itemStart * 1000);
+      }
+      if (itemEnd) {
+        updateData.currentPeriodEnd = new Date(itemEnd * 1000);
+      }
+
       const updated = await UserSubscription.findOneAndUpdate(
         { stripeSubscriptionId: stripeSub.id },
-        {
-          autoRenew: !stripeSub.cancel_at_period_end,
-          cancelAtPeriodEnd: stripeSub.cancel_at_period_end,
-          currentPeriodStart: new Date(((stripeSub as any).current_period_start ?? (stripeSub as any).start_date ?? Math.floor(Date.now() / 1000)) * 1000),
-          currentPeriodEnd: new Date(((stripeSub as any).current_period_end ?? ((stripeSub as any).start_date ? (stripeSub as any).start_date + 30 * 24 * 60 * 60 : Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60)) * 1000),
-          lastWebhookEvent: event.type,
-          lastWebhookAt: new Date(),
-        },
+        updateData,
         { new: true }
       );
 
       if (updated) {
+        if (updateData.currentPeriodEnd) {
+          await User.findByIdAndUpdate(updated.user, {
+            subscriptionTier: updated.tier,
+            subscriptionExpiresAt: updateData.currentPeriodEnd,
+          });
+        }
+
+        // Record payment transaction if an invoice is attached and paid
+        if (stripeSub.latest_invoice) {
+          try {
+            const invoiceId = typeof stripeSub.latest_invoice === 'string'
+              ? stripeSub.latest_invoice
+              : stripeSub.latest_invoice.id;
+
+            let invoiceObj = typeof stripeSub.latest_invoice === 'object'
+              ? stripeSub.latest_invoice
+              : null;
+
+            if (!invoiceObj && invoiceId) {
+              invoiceObj = await stripe.invoices.retrieve(invoiceId);
+            }
+
+            if (invoiceObj && (invoiceObj.status === 'paid' || invoiceObj.paid)) {
+              const paymentIntentId = (typeof invoiceObj.payment_intent === 'string'
+                ? invoiceObj.payment_intent
+                : invoiceObj.payment_intent?.id) || `inv_pi_${invoiceId}`;
+
+              await PaymentTransaction.findOneAndUpdate(
+                { stripePaymentIntentId: paymentIntentId },
+                {
+                  $setOnInsert: {
+                    user: updated.user,
+                    subscription: updated._id,
+                    stripePaymentIntentId: paymentIntentId,
+                    stripeInvoiceId: invoiceId,
+                    type: 'subscription_payment',
+                    status: 'succeeded',
+                    amountInCents: invoiceObj.amount_paid || invoiceObj.total || updated.priceInCents,
+                    currency: invoiceObj.currency || updated.currency || 'usd',
+                    description: `Automatic renewal for ${updated.tier} tier (${updated.billingCycle})`,
+                    metadata: {
+                      invoiceId: invoiceId,
+                      billingReason: invoiceObj.billing_reason || 'subscription_cycle',
+                    },
+                  },
+                },
+                { upsert: true, new: true }
+              );
+              await RedisService.del('admin:revenue:summary');
+              logger.info(`[Stripe Webhook] Transaction recorded in customer.subscription.updated for invoice ${invoiceId}`);
+            }
+          } catch (err: any) {
+            logger.warn(`[Stripe Webhook] Failed to record transaction in customer.subscription.updated: ${err.message}`);
+          }
+        }
+
         await RedisService.del(`user:${updated.user.toString()}:subscription`);
       }
       break;
