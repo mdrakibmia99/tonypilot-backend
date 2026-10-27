@@ -6,9 +6,7 @@ const objectIdValidator = (val: string) => Types.ObjectId.isValid(val);
 
 const createCheckoutSessionSchema = z.object({
   body: z.object({
-    planId: z.string().refine(objectIdValidator, { message: 'Invalid plan ID' }),
-    successUrl: z.string().url({ message: 'Valid success URL is required' }),
-    cancelUrl: z.string().url({ message: 'Valid cancel URL is required' }),
+    planId: z.string().refine(objectIdValidator, { message: 'Invalid plan ID' })
   }),
 });
 

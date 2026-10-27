@@ -48,14 +48,10 @@ const getActivePlans = async (): Promise<TSubscriptionPlan[]> => {
 // ==========================================
 const createCheckoutSession = async ({
   userId,
-  planId,
-  successUrl,
-  cancelUrl,
+  planId
 }: {
   userId: string;
   planId: string;
-  successUrl: string;
-  cancelUrl: string;
 }) => {
   const plan = await SubscriptionPlan.findById(planId);
   if (!plan || !plan.isActive) {
@@ -72,8 +68,6 @@ const createCheckoutSession = async ({
   const session = await createSubscriptionCheckoutSession({
     customerId,
     stripePriceId: plan.stripePriceId,
-    successUrl,
-    cancelUrl,
     userId,
     planId: plan._id.toString(),
   });

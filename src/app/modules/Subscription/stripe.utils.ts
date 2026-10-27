@@ -54,15 +54,11 @@ export const getOrCreateStripeCustomer = async (userId: string): Promise<string>
 export const createSubscriptionCheckoutSession = async ({
   customerId,
   stripePriceId,
-  successUrl,
-  cancelUrl,
   userId,
   planId,
 }: {
   customerId: string;
   stripePriceId: string;
-  successUrl: string;
-  cancelUrl: string;
   userId: string;
   planId: string;
 }): Promise<Stripe.Checkout.Session> => {
@@ -91,8 +87,8 @@ export const createSubscriptionCheckoutSession = async ({
       userId,
       planId,
     },
-    success_url: `${successUrl}?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: cancelUrl,
+    success_url: `${config.plan.success_url}?session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: config.plan.success_url,
   });
 
   return session;

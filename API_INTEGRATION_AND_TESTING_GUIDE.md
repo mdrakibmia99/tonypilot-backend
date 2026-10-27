@@ -228,7 +228,8 @@ const socket = io("http://localhost:5000", {
 
 ## 4. Module 1: Subscriptions & Stripe Billing APIs (Phase 1)
 
-> **Features Included:** 1-Month Auto-Renewal, Card Save (SetupIntent), Stripe Webhook auto-activation & cancellation, Tier Quota enforcement.
+> **Features Included:** 1-Month Auto-Renewal, Card Save (SetupIntent), Stripe Webhook auto-activation & cancellation, Tier Quota enforcement.  
+> 🔗 **Stripe Webhook Setup Guide:** বিস্তারিত Webhook Scope, Snapshot Payload, এবং Event list-এর জন্য দেখুন [STRIPE_WEBHOOK_SETUP_GUIDE.md](./STRIPE_WEBHOOK_SETUP_GUIDE.md)।
 
 ### 1. Get All Active Subscription Plans (পাবলিক প্ল্যান লিস্ট)
 - **Method:** `GET`

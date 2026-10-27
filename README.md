@@ -8,7 +8,8 @@ Built with **Node.js, Express, TypeScript, MongoDB (Mongoose), Redis, Socket.IO,
 
 ## 📖 Complete API & Mobile Integration Guide
 For the exhaustive, zero-omission API documentation, Postman testing guide, Socket.IO events matrix, and Flutter/React integration snippets, please read:
-👉 **[API Integration and Testing Guide (README_API_GUIDE)](./API_INTEGRATION_AND_TESTING_GUIDE.md)**
+👉 **[API Integration and Testing Guide (README_API_GUIDE)](./API_INTEGRATION_AND_TESTING_GUIDE.md)**  
+👉 **[Stripe Webhook Setup & Auto-Renewal Guide](./STRIPE_WEBHOOK_SETUP_GUIDE.md)**
 
 ---
 
