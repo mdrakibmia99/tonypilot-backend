@@ -7,7 +7,6 @@ import { User } from '../user/user.models';
 import { SubscriptionPlan, UserSubscription, PaymentTransaction } from './subscription.model';
 import {
   TSubscriptionPlan,
-  TUserSubscription,
   TSavedPaymentMethod,
 } from './subscription.interface';
 import {
@@ -270,11 +269,10 @@ const handleWebhookEvent = async (event: Stripe.Event) => {
 
         const userId = session.metadata?.userId || stripeSub.metadata?.userId;
         const planId = session.metadata?.planId || stripeSub.metadata?.planId;
-
         if (userId && planId) {
           const plan = await SubscriptionPlan.findById(planId);
           if (plan) {
-            // Upsert UserSubscription
+
             const userSub = await UserSubscription.findOneAndUpdate(
               { stripeSubscriptionId: stripeSub.id },
               {
@@ -290,20 +288,19 @@ const handleWebhookEvent = async (event: Stripe.Event) => {
                 billingCycle: plan.billingCycle,
                 priceInCents: plan.priceInCents,
                 currency: plan.currency,
-                currentPeriodStart: new Date((stripeSub as any).current_period_start * 1000),
-                currentPeriodEnd: new Date((stripeSub as any).current_period_end * 1000),
+                currentPeriodStart: new Date(((stripeSub as any).current_period_start ?? (stripeSub as any).start_date) * 1000),
+                currentPeriodEnd: new Date(((stripeSub as any).current_period_end ?? ((stripeSub as any).start_date + (plan.billingCycle === "monthly" ? 30 * 24 * 60 * 60 : 365 * 24 * 60 * 60))) * 1000),
                 lastWebhookEvent: event.type,
                 lastWebhookAt: new Date(),
               },
               { upsert: true, new: true }
             );
-
             // Update User document
             await User.findByIdAndUpdate(userId, {
               subscriptionTier: plan.tier,
               activeSubscription: userSub._id,
               stripeCustomerId: session.customer as string,
-              subscriptionExpiresAt: new Date((stripeSub as any).current_period_end * 1000),
+              subscriptionExpiresAt: new Date(((stripeSub as any).current_period_end ?? ((stripeSub as any).start_date + (plan.billingCycle === "monthly" ? 30 * 24 * 60 * 60 : 365 * 24 * 60 * 60))) * 1000),
             });
 
             // Evict caches
@@ -456,7 +453,7 @@ const handleWebhookEvent = async (event: Stripe.Event) => {
         {
           autoRenew: !stripeSub.cancel_at_period_end,
           cancelAtPeriodEnd: stripeSub.cancel_at_period_end,
-          currentPeriodStart: new Date((stripeSub as any).current_period_start * 1000),
+          currentPeriodStart: new Date(((stripeSub as any).current_period_start ?? (stripeSub as any).start_date) * 1000),
           currentPeriodEnd: new Date((stripeSub as any).current_period_end * 1000),
           lastWebhookEvent: event.type,
           lastWebhookAt: new Date(),

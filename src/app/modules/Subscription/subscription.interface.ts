@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-empty-object-type */
 import { Model, Types } from 'mongoose';
 import {
   TBillingCycle,

@@ -507,7 +507,8 @@ const socket = io("http://localhost:5000", {
 > - ZEGOCLOUD Token04 Generation (AES-256-GCM Cryptographic Signature).
 > - Server-Authoritative 1-Second Timer (`timer_tick` on Socket.IO).
 > - Host Monthly Streaming Quota Protection.
-> - Audience Viewer Management & Redis In-Memory Counter.
+> - Audience Viewer Management & Redis In-Memory Counter.  
+> 🔗 **ZEGOCLOUD Console & Pricing Guide:** ক্লায়েন্টকে বোঝানো, AppID/ServerSecret সংগ্রহ এবং খরচের বিস্তারিত জানতে দেখুন [ZEGOCLOUD_CREDENTIALS_AND_PRICING_GUIDE.md](./ZEGOCLOUD_CREDENTIALS_AND_PRICING_GUIDE.md)।
 
 ### 1. Initialize Pre-Live Studio Session (প্রি-লাইভ স্টুডিও ইনিশিয়ালাইজেশন)
 > হোস্ট লাইভে যাওয়ার আগে ক্যামেরা/মাইক টেস্ট করতে প্রি-লাইভ স্টুডিও ওপেন করবে। ব্যাকএন্ড ZEGOCLOUD পাবলিশার প্রিভিলেজ টোকেন ও রুম আইডি তৈরি করবে।
