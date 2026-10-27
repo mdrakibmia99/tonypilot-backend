@@ -264,7 +264,7 @@ const handleWebhookEvent = async (event: Stripe.Event) => {
       if (session.mode === 'subscription' && session.subscription) {
         const stripeSub = await stripe.subscriptions.retrieve(
           session.subscription as string,
-          { expand: ['default_payment_method'] }
+          { expand: ['default_payment_method', 'latest_invoice'] }
         );
 
         const userId = session.metadata?.userId || stripeSub.metadata?.userId;
@@ -272,6 +272,11 @@ const handleWebhookEvent = async (event: Stripe.Event) => {
         if (userId && planId) {
           const plan = await SubscriptionPlan.findById(planId);
           if (plan) {
+            const latestInvoiceObj = typeof stripeSub.latest_invoice === 'object' ? (stripeSub.latest_invoice as any) : null;
+            const invoiceId = latestInvoiceObj?.id || (typeof stripeSub.latest_invoice === 'string' ? stripeSub.latest_invoice : (session.invoice as string) || '');
+
+            const periodStart = new Date(((stripeSub as any).current_period_start ?? (stripeSub as any).start_date ?? Math.floor(Date.now() / 1000)) * 1000);
+            const periodEnd = new Date(((stripeSub as any).current_period_end ?? ((stripeSub as any).start_date ? (stripeSub as any).start_date + (plan.billingCycle === 'monthly' ? 30 * 24 * 60 * 60 : 365 * 24 * 60 * 60) : Math.floor(Date.now() / 1000) + (plan.billingCycle === 'monthly' ? 30 * 24 * 60 * 60 : 365 * 24 * 60 * 60))) * 1000);
 
             const userSub = await UserSubscription.findOneAndUpdate(
               { stripeSubscriptionId: stripeSub.id },
@@ -282,31 +287,68 @@ const handleWebhookEvent = async (event: Stripe.Event) => {
                 status: SUBSCRIPTION_STATUS.ACTIVE,
                 stripeCustomerId: session.customer as string,
                 stripeSubscriptionId: stripeSub.id,
-                stripeLatestInvoiceId: (stripeSub.latest_invoice as string) || '',
+                stripeLatestInvoiceId: invoiceId,
                 autoRenew: !stripeSub.cancel_at_period_end,
                 cancelAtPeriodEnd: stripeSub.cancel_at_period_end,
                 billingCycle: plan.billingCycle,
                 priceInCents: plan.priceInCents,
                 currency: plan.currency,
-                currentPeriodStart: new Date(((stripeSub as any).current_period_start ?? (stripeSub as any).start_date) * 1000),
-                currentPeriodEnd: new Date(((stripeSub as any).current_period_end ?? ((stripeSub as any).start_date + (plan.billingCycle === "monthly" ? 30 * 24 * 60 * 60 : 365 * 24 * 60 * 60))) * 1000),
+                currentPeriodStart: periodStart,
+                currentPeriodEnd: periodEnd,
                 lastWebhookEvent: event.type,
                 lastWebhookAt: new Date(),
               },
               { upsert: true, new: true }
             );
+
             // Update User document
             await User.findByIdAndUpdate(userId, {
               subscriptionTier: plan.tier,
               activeSubscription: userSub._id,
               stripeCustomerId: session.customer as string,
-              subscriptionExpiresAt: new Date(((stripeSub as any).current_period_end ?? ((stripeSub as any).start_date + (plan.billingCycle === "monthly" ? 30 * 24 * 60 * 60 : 365 * 24 * 60 * 60))) * 1000),
+              subscriptionExpiresAt: periodEnd,
             });
+
+            // Record initial payment transaction idempotently
+            let paymentIntentId = (session.payment_intent as string) || '';
+            if (!paymentIntentId && latestInvoiceObj?.payment_intent) {
+              paymentIntentId = typeof latestInvoiceObj.payment_intent === 'string'
+                ? latestInvoiceObj.payment_intent
+                : latestInvoiceObj.payment_intent?.id || '';
+            }
+            if (!paymentIntentId && invoiceId) {
+              paymentIntentId = `inv_pi_${invoiceId}`;
+            } else if (!paymentIntentId) {
+              paymentIntentId = `cs_pi_${session.id}`;
+            }
+
+            await PaymentTransaction.findOneAndUpdate(
+              { stripePaymentIntentId: paymentIntentId },
+              {
+                $setOnInsert: {
+                  user: new Types.ObjectId(userId),
+                  subscription: userSub._id,
+                  stripePaymentIntentId: paymentIntentId,
+                  stripeInvoiceId: invoiceId,
+                  type: 'subscription_payment',
+                  status: 'succeeded',
+                  amountInCents: session.amount_total || plan.priceInCents,
+                  currency: session.currency || plan.currency || 'usd',
+                  description: `Initial payment for ${plan.name} (${plan.tier}) - ${plan.billingCycle}`,
+                  metadata: {
+                    sessionId: session.id,
+                    planId: plan._id.toString(),
+                    invoiceId: invoiceId || '',
+                  },
+                },
+              },
+              { upsert: true, new: true }
+            );
 
             // Evict caches
             await RedisService.del(`user:${userId}:subscription`);
             await RedisService.del('admin:revenue:summary');
-            logger.info(`[Stripe Webhook] Provisioned subscription for user ${userId} to ${plan.tier}`);
+            logger.info(`[Stripe Webhook] Provisioned subscription and recorded initial transaction for user ${userId} to ${plan.tier}`);
           }
         }
       }
