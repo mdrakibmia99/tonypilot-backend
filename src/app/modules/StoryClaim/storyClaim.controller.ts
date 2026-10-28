@@ -38,7 +38,7 @@ const getClaimsForStream = catchAsync(async (req: Request, res: Response) => {
 
 const voteStoryClaim = catchAsync(async (req: Request, res: Response) => {
   const userId = req.user.userId;
-  const claimId = req.params.id as string;
+  const claimId = req.params.LiveStoryClaim as string;
   const { voteType } = req.body;
 
   const result = await StoryClaimService.voteStoryClaim(

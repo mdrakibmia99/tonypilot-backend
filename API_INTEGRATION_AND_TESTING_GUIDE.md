@@ -409,17 +409,17 @@ const socket = io("http://localhost:5000", {
 ```json
 {
   "title": "Sony Alpha A7 III Full Frame Camera",
-  "category": "Electronics",
+  "category": "electronics",
   "description": "Mint condition camera with 28-70mm lens kit.",
   "condition": "like_new",
   "estimatedValue": 1200,
   "pickupInstructions": "Meet at Banani Starbucks or DHL courier handover.",
-  "location": {
-    "type": "Point",
-    "coordinates": [90.4125, 23.8103],
+  "pickupAddress": {
     "address": "Banani, Dhaka",
-    "city": "Dhaka",
-    "postalCode": "1213"
+    "location": {
+      "type": "Point",
+      "coordinates": [90.4125, 23.8103]
+    }
   }
 }
 ```
@@ -446,7 +446,7 @@ const socket = io("http://localhost:5000", {
 > [!TIP]
 > ব্যবহারকারীর বর্তমান অক্ষাংশ ও দ্রাঘিমাংশ (`lat`, `lng`) পাঠালে ২৫ মাইল ব্যাসার্ধের ভেতরের গিফটগুলো আগে ফিল্টার হয়ে আসে।
 - **Method:** `GET`
-- **URL:** `/gift-items/public?lng=90.4125&lat=23.8103&radiusMiles=25&category=Electronics&page=1&limit=10`
+- **URL:** `/gift-items/public?lng=90.4125&lat=23.8103&radiusMiles=25&category=electronics&page=1&limit=10`
 - **Auth:** Public
 - **Response (200):**
 ```json
@@ -519,24 +519,24 @@ const socket = io("http://localhost:5000", {
 ```json
 {
   "giftItemId": "65f2a1b2c3d4e5f6a7b8c901",
-  "title": "Giving away Sony A7 III to a genuine creator!",
-  "description": "Tell me your creative story live on stream.",
-  "durationMinutes": 60
+  "channelName": "Giving away Sony A7 III to a genuine creator!",
+  "timerDurationSeconds": 3600
 }
 ```
-- **Response (200):**
+- **Response (201):**
 ```json
 {
   "success": true,
-  "statusCode": 200,
-  "message": "Pre-live session initialized successfully",
+  "statusCode": 201,
+  "message": "Live studio session initialized successfully",
   "data": {
     "streamId": "65f3a0000000000000000001",
-    "roomId": "room_65f3a0000000000000000001",
-    "zegoToken": "04AAAAAG...official_crypto_token...",
-    "zegoAppId": 123456789,
-    "role": "host",
-    "durationMinutes": 60,
+    "roomId": "tony_room_1730000000000_abc123",
+    "channelName": "Giving away Sony A7 III to a genuine creator!",
+    "rtcToken": "04AAAAAG...official_crypto_token...",
+    "zimToken": "04AAAAAG...official_crypto_token...",
+    "appId": 123456789,
+    "timerDurationSeconds": 3600,
     "giftItem": {
       "_id": "65f2a1b2c3d4e5f6a7b8c901",
       "title": "Sony Alpha A7 III Full Frame Camera",
@@ -684,9 +684,7 @@ const socket = io("http://localhost:5000", {
 ```json
 {
   "streamId": "65f3a0000000000000000001",
-  "storyText": "I am a documentary filmmaker from Sylhet creating wildlife stories. This camera will help me finish my graduation film.",
-  "reasonCategory": "education",
-  "urgencyLevel": "urgent"
+  "storyStatement": "I am a documentary filmmaker from Sylhet creating wildlife stories. This camera will help me finish my graduation film."
 }
 ```
 - **Response (201):**
@@ -1222,9 +1220,7 @@ flowchart TD
     ```json
     {
       "streamId": "<streamId>",
-      "storyText": "I run an environmental NGO and need this drone for flood rescue monitoring.",
-      "reasonCategory": "social_cause",
-      "urgencyLevel": "urgent"
+      "storyStatement": "I run an environmental NGO and need this drone for flood rescue monitoring."
     }
     ```
 - **Verification:**  

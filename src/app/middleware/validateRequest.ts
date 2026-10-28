@@ -5,15 +5,19 @@ import catchAsync from '../utils/catchAsync';
 
 const validateRequest = (schema: any) => {
   return catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-    console.log("req.body====",req.body);
-   const validateData = await schema.parseAsync({
+    const validateData = await schema.parseAsync({
       body: req.body,
+      params: req.params,
+      query: req.query,
       files: req.files,
       file: req.file,
       cookies: req.cookies,
     });
-    req.body=validateData.body
-    console.log("req.body====end",req.body,validateData.body);
+
+    if (validateData.body !== undefined) req.body = validateData.body;
+    if (validateData.params !== undefined) req.params = validateData.params;
+    if (validateData.query !== undefined) req.query = validateData.query;
+
     next();
   });
 };

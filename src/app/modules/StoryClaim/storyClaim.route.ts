@@ -21,7 +21,7 @@ const router = Router();
  */
 router.post(
   '/',
-  auth(USER_ROLE.USER),
+  auth(USER_ROLE.USER,USER_ROLE.ADMIN),
   upload.single('storyMedia'),
   parseData(),
   validateRequest(createStoryClaimZodSchema),
@@ -44,7 +44,7 @@ router.get(
  * POST /api/v1/story-claims/:id/vote
  */
 router.post(
-  '/:id/vote',
+  '/:LiveStoryClaim/vote',
   auth(USER_ROLE.USER),
   validateRequest(voteStoryClaimZodSchema),
   StoryClaimController.voteStoryClaim,

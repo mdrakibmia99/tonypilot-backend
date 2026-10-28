@@ -18,7 +18,7 @@ export const createStoryClaimZodSchema = z.object({
 
 export const voteStoryClaimZodSchema = z.object({
   params: z.object({
-    id: z
+    LiveStoryClaim: z
       .string()
       .min(1, 'Claim ID is required')
       .refine(objectIdValidator, { message: 'Invalid Claim ObjectId format' }),

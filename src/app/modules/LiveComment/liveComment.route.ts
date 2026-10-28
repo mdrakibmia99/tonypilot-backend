@@ -23,7 +23,7 @@ const moderationRouter = Router();
  */
 commentRouter.post(
   '/',
-  auth(USER_ROLE.USER),
+  auth(USER_ROLE.USER,USER_ROLE.ADMIN),
   validateRequest(createLiveCommentZodSchema),
   LiveCommentController.sendLiveComment,
 );

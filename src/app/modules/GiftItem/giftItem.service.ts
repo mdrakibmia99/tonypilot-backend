@@ -92,8 +92,8 @@ const getPublicAvailableGifts = async (query: Record<string, unknown>) => {
     !query.searchTerm &&
     !query.category &&
     !query.condition &&
-    !query.longitude &&
-    !query.latitude &&
+    !query.lng &&
+    !query.lat &&
     page <= 5;
 
   const cacheKey = `gifts:public:page:${page}`;
@@ -103,6 +103,9 @@ const getPublicAvailableGifts = async (query: Record<string, unknown>) => {
   }
 
   const cleanQuery = { ...query };
+  delete cleanQuery.lng;
+  delete cleanQuery.lat;
+  delete cleanQuery.radiusMiles;
   delete cleanQuery.longitude;
   delete cleanQuery.latitude;
   delete cleanQuery.maxDistanceMeters;
@@ -114,11 +117,26 @@ const getPublicAvailableGifts = async (query: Record<string, unknown>) => {
   };
 
   // Geo-spatial filtering if coordinates provided
-  if (query.longitude !== undefined && query.latitude !== undefined) {
-    const lng = Number(query.longitude);
-    const lat = Number(query.latitude);
-    const maxDist = Number(query.maxDistanceMeters) || 40233; // ~25 miles
-    const radians = maxDist / 6378100;
+  const longitude = query.lng ?? query.longitude;
+  const latitude = query.lat ?? query.latitude;
+
+  if (longitude !== undefined && latitude !== undefined) {
+    const lng = Number(longitude);
+    const lat = Number(latitude);
+    const radiusMiles = Number(query.radiusMiles) || 25;
+    const maxDistanceMeters =
+      Number(query.maxDistanceMeters) || radiusMiles * 1609.344;
+    const radians = maxDistanceMeters / 6378100;
+
+    if (!Number.isFinite(lng) || lng < -180 || lng > 180) {
+      throw new AppError(httpStatus.BAD_REQUEST, 'Invalid longitude');
+    }
+    if (!Number.isFinite(lat) || lat < -90 || lat > 90) {
+      throw new AppError(httpStatus.BAD_REQUEST, 'Invalid latitude');
+    }
+    if (!Number.isFinite(maxDistanceMeters) || maxDistanceMeters <= 0) {
+      throw new AppError(httpStatus.BAD_REQUEST, 'Invalid search radius');
+    }
 
     baseFilter = {
       ...baseFilter,
