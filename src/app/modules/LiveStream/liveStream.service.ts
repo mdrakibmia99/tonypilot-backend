@@ -8,7 +8,8 @@ import { GiftItem } from '../GiftItem/giftItem.model';
 import { GIFT_CLAIM_STATE } from '../GiftItem/giftItem.constants';
 import { TIER_LIMITS } from '../Subscription/subscription.constants';
 import { LiveStream } from './liveStream.model';
-import '../StoryClaim/storyClaim.model';
+import { LiveStoryClaim } from '../StoryClaim/storyClaim.model';
+import { STORY_CLAIM_REDIS_KEYS } from '../StoryClaim/storyClaim.constants';
 import {
   LIVE_STREAM_STATUS,
   LIVE_STREAM_REDIS_KEYS,
@@ -146,9 +147,22 @@ const preLiveInit = async (
     timerDurationSeconds: requestedDuration,
   });
 
-  // Associate stream with gift item
+  // Associate the stream and all stories collected since the gift was published.
   giftItem.associatedStream = stream._id as Types.ObjectId;
   await giftItem.save();
+
+  const claimLinkResult = await LiveStoryClaim.updateMany(
+    { giftItem: giftItem._id, isDeleted: false },
+    { $set: { stream: stream._id } },
+  );
+  stream.totalClaimsReceived = claimLinkResult.matchedCount;
+  await stream.save();
+  await RedisService.del(
+    STORY_CLAIM_REDIS_KEYS.CLAIMS_GIFT(giftItem._id.toString()),
+  );
+  await RedisService.del(
+    STORY_CLAIM_REDIS_KEYS.CLAIMS_STREAM(stream._id.toString()),
+  );
 
   // 7. Initialize Ephemeral Room State in Redis
   const stateKey = LIVE_STREAM_REDIS_KEYS.STREAM_STATE(stream._id.toString());

@@ -393,7 +393,7 @@ const reviewStoryClaim = async (
     auditAction = 'CLAIM_REMOVED';
 
     // If claim was pinned on stream, unpin it
-    if (claim.isPinned) {
+    if (claim.isPinned && claim.stream) {
       await LiveStream.findByIdAndUpdate(claim.stream, {
         $set: { pinnedClaim: null },
       });
@@ -428,7 +428,14 @@ const reviewStoryClaim = async (
     },
   });
 
-  await RedisService.del(STORY_CLAIM_REDIS_KEYS.CLAIMS_STREAM(claim.stream.toString()));
+  await RedisService.del(
+    STORY_CLAIM_REDIS_KEYS.CLAIMS_GIFT(claim.giftItem.toString()),
+  );
+  if (claim.stream) {
+    await RedisService.del(
+      STORY_CLAIM_REDIS_KEYS.CLAIMS_STREAM(claim.stream.toString()),
+    );
+  }
   return claim;
 };
 

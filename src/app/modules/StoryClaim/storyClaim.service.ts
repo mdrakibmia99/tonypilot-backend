@@ -7,7 +7,10 @@ import { User } from '../user/user.models';
 import { LiveStream } from '../LiveStream/liveStream.model';
 import { LIVE_STREAM_STATUS } from '../LiveStream/liveStream.constants';
 import { GiftItem } from '../GiftItem/giftItem.model';
-import { GIFT_CLAIM_STATE } from '../GiftItem/giftItem.constants';
+import {
+  GIFT_CLAIM_STATE,
+  GIFT_VERIFICATION_STATUS,
+} from '../GiftItem/giftItem.constants';
 import { TIER_LIMITS } from '../Subscription/subscription.constants';
 import { AdminAuditLog } from '../AuditLog/auditLog.model';
 import { LiveStoryClaim } from './storyClaim.model';
@@ -30,12 +33,16 @@ const safeEmitToRoom = (room: string, event: string, payload: any) => {
 
 /**
  * 1. Submit Story Claim ("Request with Story")
- * Applicant submits why they need the gift item.
- * Enforces daily subscription limits, live status, and host-claim prevention.
+ * Stories open as soon as an approved gift is published. A stream is linked later
+ * during live preparation.
  */
 const submitStoryClaim = async (
   userId: string,
-  payload: { streamId: string; storyStatement: string },
+  payload: {
+    giftItemId: string;
+    storyTitle: string;
+    storyStatement: string;
+  },
   file?: Express.Multer.File,
 ) => {
   const user = await User.findById(userId);
@@ -43,47 +50,45 @@ const submitStoryClaim = async (
     throw new AppError(httpStatus.UNAUTHORIZED, 'User account is not active');
   }
 
-  // 1. Verify LiveStream status
-  const stream = await LiveStream.findById(payload.streamId);
-  if (!stream || stream.isDeleted) {
-    throw new AppError(httpStatus.NOT_FOUND, 'Live stream broadcast not found');
+  const giftItem = await GiftItem.findById(payload.giftItemId);
+  if (!giftItem || giftItem.isDeleted) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Gift item not found');
   }
 
-  if (stream.status !== LIVE_STREAM_STATUS.LIVE) {
+  if (
+    !giftItem.isPublished ||
+    giftItem.verificationStatus !== GIFT_VERIFICATION_STATUS.APPROVED ||
+    giftItem.claimState !== GIFT_CLAIM_STATE.AVAILABLE
+  ) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
-      'Stories can only be submitted while the broadcast is actively live',
+      'Stories are not open for this gift item',
     );
   }
 
-  // 2. Prevent Host from claiming their own gift
-  if (stream.host.toString() === userId) {
+  if (giftItem.host.toString() === userId) {
     throw new AppError(
       httpStatus.FORBIDDEN,
-      'Hosts cannot submit story claims for their own stream gift',
+      'Hosts cannot submit story claims for their own gift',
     );
   }
 
-  // 3. Enforce Uniqueness: One claim per applicant per stream
   const existingClaim = await LiveStoryClaim.findOne({
     applicant: userId,
-    stream: payload.streamId,
+    giftItem: payload.giftItemId,
     isDeleted: false,
   });
   if (existingClaim) {
     throw new AppError(
       httpStatus.CONFLICT,
-      'You have already submitted a story claim for this live broadcast',
+      'You have already submitted a story for this gift',
     );
   }
 
-  // 4. Enforce Daily Story Claim Subscription Quota
   const tier = (user.subscriptionTier || 'free') as keyof typeof TIER_LIMITS;
   const tierLimits = TIER_LIMITS[tier] || TIER_LIMITS.free;
-
   const now = new Date();
   const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
   const claimsToday = await LiveStoryClaim.countDocuments({
     applicant: userId,
     createdAt: { $gte: startOfDay },
@@ -99,44 +104,46 @@ const submitStoryClaim = async (
     );
   }
 
-  // 5. Handle optional attachment
-  let storyMediaUrl = '';
-  if (file) {
-    storyMediaUrl = `/uploads/${file.filename}`;
-  }
-
-  // 6. Create Story Claim Document
+  const streamId = giftItem.associatedStream || null;
+  const storyMediaUrl = file?.path
+    ? file.path.replace(/\\/g, '/').replace(/^public\//, '/')
+    : '';
   const claim = await LiveStoryClaim.create({
     applicant: userId,
-    stream: payload.streamId,
-    giftItem: stream.giftItem,
+    stream: streamId,
+    giftItem: giftItem._id,
+    storyTitle: payload.storyTitle.trim(),
     storyStatement: payload.storyStatement.trim(),
     storyMediaUrl,
     status: STORY_CLAIM_STATUS.PENDING,
   });
 
-  // 7. Increment Counters
-  await LiveStream.findByIdAndUpdate(payload.streamId, {
-    $inc: { totalClaimsReceived: 1 },
-  });
-  await GiftItem.findByIdAndUpdate(stream.giftItem, {
+  if (streamId) {
+    await LiveStream.findByIdAndUpdate(streamId, {
+      $inc: { totalClaimsReceived: 1 },
+    });
+    await RedisService.del(
+      STORY_CLAIM_REDIS_KEYS.CLAIMS_STREAM(streamId.toString()),
+    );
+  }
+  await GiftItem.findByIdAndUpdate(giftItem._id, {
     $inc: { storyClaimCount: 1 },
   });
   await User.findByIdAndUpdate(userId, {
     $inc: { totalStoriesClaimed: 1 },
   });
+  await RedisService.del(
+    STORY_CLAIM_REDIS_KEYS.CLAIMS_GIFT(payload.giftItemId),
+  );
 
-  // Invalidate Claims Cache for Stream
-  await RedisService.del(STORY_CLAIM_REDIS_KEYS.CLAIMS_STREAM(payload.streamId));
-
-  // 8. Real-time Notification to Host
   const populatedClaim = await LiveStoryClaim.findById(claim._id).populate(
     'applicant',
     'fullName profileImage neighborhoodLabel communityTrustScore',
   );
 
-  safeEmitToRoom(`user:${stream.host.toString()}`, 'new_story_claim', {
-    streamId: payload.streamId,
+  safeEmitToRoom(`user:${giftItem.host.toString()}`, 'new_story_claim', {
+    giftItemId: giftItem._id,
+    streamId,
     claim: populatedClaim,
   });
 
@@ -201,21 +208,88 @@ const getClaimsForStream = async (
 };
 
 /**
+ * Get all stories for a gift before or during its live broadcast.
+ */
+const getClaimsForGift = async (
+  giftItemId: string,
+  query: Record<string, any>,
+) => {
+  const giftItem = await GiftItem.findById(giftItemId);
+  if (!giftItem) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Gift item not found');
+  }
+
+  const isDefaultQuery =
+    !query.searchTerm &&
+    (!query.page || query.page === '1') &&
+    !query.status;
+
+  if (isDefaultQuery) {
+    const cachedData = await RedisService.get(
+      STORY_CLAIM_REDIS_KEYS.CLAIMS_GIFT(giftItemId),
+    );
+    if (cachedData) {
+      try {
+        return typeof cachedData === 'string'
+          ? JSON.parse(cachedData)
+          : cachedData;
+      } catch {
+        // Fallback to database
+      }
+    }
+  }
+
+  const baseQuery = LiveStoryClaim.find({
+    giftItem: giftItemId,
+    isDeleted: false,
+  }).populate(
+    'applicant',
+    'fullName profileImage neighborhoodLabel communityTrustScore',
+  );
+
+  const claimQueryBuilder = new QueryBuilder(baseQuery, query)
+    .search(STORY_CLAIM_SEARCHABLE_FIELDS)
+    .filter()
+    .sort()
+    .paginate()
+    .fields();
+
+  const meta = await claimQueryBuilder.countTotal();
+  const data = await claimQueryBuilder.modelQuery;
+  const result = { meta, data };
+
+  if (isDefaultQuery) {
+    await RedisService.set(
+      STORY_CLAIM_REDIS_KEYS.CLAIMS_GIFT(giftItemId),
+      JSON.stringify(result),
+      STORY_CLAIM_REDIS_KEYS.TTL,
+    );
+  }
+
+  return result;
+};
+
+/**
  * 3. Community Vote on Story Claim ("Community Story Voting")
- * Allows viewers to upvote/downvote applicant stories.
- * Enforces toggle and switch behavior with zero duplicate vote drift.
+ * A user has one vote per gift and may switch its type on the same story.
  */
 const voteStoryClaim = async (
   userId: string,
+  giftItemId: string,
   claimId: string,
   voteType: TVoteType,
 ) => {
-  const claim = await LiveStoryClaim.findById(claimId);
+  const claim = await LiveStoryClaim.findOne({
+    _id: claimId,
+    giftItem: giftItemId,
+  });
   if (!claim || claim.isDeleted) {
-    throw new AppError(httpStatus.NOT_FOUND, 'Story claim not found');
+    throw new AppError(
+      httpStatus.NOT_FOUND,
+      'Story claim was not found for this gift',
+    );
   }
 
-  // Prevent applicant from voting on their own story
   if (claim.applicant.toString() === userId) {
     throw new AppError(
       httpStatus.FORBIDDEN,
@@ -223,83 +297,136 @@ const voteStoryClaim = async (
     );
   }
 
-  // Verify stream is live
-  const stream = await LiveStream.findById(claim.stream);
-  if (!stream || stream.status !== LIVE_STREAM_STATUS.LIVE) {
+  const giftItem = await GiftItem.findById(giftItemId);
+  if (
+    !giftItem ||
+    !giftItem.isPublished ||
+    giftItem.verificationStatus !== GIFT_VERIFICATION_STATUS.APPROVED ||
+    giftItem.claimState !== GIFT_CLAIM_STATE.AVAILABLE
+  ) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
-      'Voting is only active while the broadcast is live',
+      'Voting is closed for this gift item',
     );
   }
 
-  const votes = claim.votes || [];
-  const existingVoteIndex = votes.findIndex(
-    (v) => v.voter.toString() === userId,
-  );
+  const voterObjectId = new Types.ObjectId(userId);
+  const existingGiftVote = await LiveStoryClaim.findOne({
+    giftItem: giftItemId,
+    voterIds: userId,
+    isDeleted: false,
+  });
 
-  let userVoteState: string | null = voteType;
+  let updatedClaim = claim;
 
-  if (existingVoteIndex === -1) {
-    // 1. New Vote
-    votes.push({
-      voter: new Types.ObjectId(userId),
-      voteType,
-    });
-    claim.voterIds.push(new Types.ObjectId(userId));
-
-    if (voteType === 'upvote') {
-      claim.upvotes += 1;
-    } else {
-      claim.downvotes += 1;
+  if (existingGiftVote) {
+    if (existingGiftVote._id.toString() !== claimId) {
+      throw new AppError(
+        httpStatus.CONFLICT,
+        'You have already voted for another story on this gift',
+      );
     }
-  } else {
-    const existingVote = votes[existingVoteIndex];
 
-    if (existingVote.voteType === voteType) {
-      // 2. Toggle Off (remove vote)
-      votes.splice(existingVoteIndex, 1);
-      claim.voterIds = claim.voterIds.filter(
-        (id) => id.toString() !== userId,
+    const existingVote = existingGiftVote.votes?.find(
+      (vote) => vote.voter.toString() === userId,
+    );
+    if (!existingVote) {
+      throw new AppError(httpStatus.CONFLICT, 'Your existing vote is invalid');
+    }
+
+    if (existingVote.voteType !== voteType) {
+      const newCounter = voteType === 'upvote' ? 'upvotes' : 'downvotes';
+      const oldCounter =
+        existingVote.voteType === 'upvote' ? 'upvotes' : 'downvotes';
+
+      const switchedClaim = await LiveStoryClaim.findOneAndUpdate(
+        {
+          _id: claimId,
+          votes: {
+            $elemMatch: {
+              voter: voterObjectId,
+              voteType: existingVote.voteType,
+            },
+          },
+        },
+        {
+          $set: { 'votes.$.voteType': voteType },
+          $inc: { [newCounter]: 1, [oldCounter]: -1 },
+        },
+        { new: true, runValidators: true },
       );
 
-      if (voteType === 'upvote') {
-        claim.upvotes = Math.max(0, claim.upvotes - 1);
-      } else {
-        claim.downvotes = Math.max(0, claim.downvotes - 1);
+      if (!switchedClaim) {
+        throw new AppError(
+          httpStatus.CONFLICT,
+          'Vote changed before the update could be completed',
+        );
       }
-      userVoteState = null;
+      updatedClaim = switchedClaim;
     } else {
-      // 3. Switch Vote (upvote <-> downvote)
-      existingVote.voteType = voteType;
-
-      if (voteType === 'upvote') {
-        claim.upvotes += 1;
-        claim.downvotes = Math.max(0, claim.downvotes - 1);
-      } else {
-        claim.downvotes += 1;
-        claim.upvotes = Math.max(0, claim.upvotes - 1);
-      }
+      updatedClaim = existingGiftVote;
     }
+  } else {
+    const counterField = voteType === 'upvote' ? 'upvotes' : 'downvotes';
+    const newClaimVote = await LiveStoryClaim.findOneAndUpdate(
+      {
+        _id: claimId,
+        giftItem: giftItemId,
+        voterIds: { $ne: userId },
+      },
+      {
+        $addToSet: { voterIds: voterObjectId },
+        $push: {
+          votes: {
+            voter: voterObjectId,
+            voteType,
+          },
+        },
+        $inc: { [counterField]: 1 },
+      },
+      { new: true, runValidators: true },
+    );
+
+    if (!newClaimVote) {
+      throw new AppError(
+        httpStatus.CONFLICT,
+        'You have already voted for this story',
+      );
+    }
+    updatedClaim = newClaimVote;
   }
 
-  claim.votes = votes;
-  await claim.save();
+  await RedisService.del(
+    STORY_CLAIM_REDIS_KEYS.CLAIMS_GIFT(giftItemId),
+  );
 
-  // Invalidate Redis Stream Claims Cache
-  await RedisService.del(STORY_CLAIM_REDIS_KEYS.CLAIMS_STREAM(claim.stream.toString()));
+  if (updatedClaim.stream) {
+    await RedisService.del(
+      STORY_CLAIM_REDIS_KEYS.CLAIMS_STREAM(updatedClaim.stream.toString()),
+    );
+    safeEmitToRoom(
+      `stream:${updatedClaim.stream.toString()}`,
+      'claim_vote_updated',
+      {
+        claimId: updatedClaim._id,
+        upvotes: updatedClaim.upvotes,
+        downvotes: updatedClaim.downvotes,
+      },
+    );
+  }
 
-  // Broadcast Real-time Vote Update
-  safeEmitToRoom(`stream:${claim.stream.toString()}`, 'claim_vote_updated', {
-    claimId: claim._id,
-    upvotes: claim.upvotes,
-    downvotes: claim.downvotes,
+  safeEmitToRoom(`gift:${giftItemId}`, 'claim_vote_updated', {
+    claimId: updatedClaim._id,
+    upvotes: updatedClaim.upvotes,
+    downvotes: updatedClaim.downvotes,
   });
 
   return {
-    claimId: claim._id,
-    upvotes: claim.upvotes,
-    downvotes: claim.downvotes,
-    userVote: userVoteState,
+    giftItemId,
+    claimId: updatedClaim._id,
+    upvotes: updatedClaim.upvotes,
+    downvotes: updatedClaim.downvotes,
+    userVote: voteType,
   };
 };
 
@@ -360,6 +487,9 @@ const pinStoryClaim = async (userId: string, claimId: string) => {
 
   // Invalidate Cache
   await RedisService.del(STORY_CLAIM_REDIS_KEYS.CLAIMS_STREAM(stream._id.toString()));
+  await RedisService.del(
+    STORY_CLAIM_REDIS_KEYS.CLAIMS_GIFT(claim.giftItem.toString()),
+  );
 
   // Broadcast Socket.IO event to all viewers in the room
   safeEmitToRoom(`stream:${stream._id.toString()}`, 'story_claim_pinned', {
@@ -403,6 +533,9 @@ const unpinStoryClaim = async (userId: string, claimId: string) => {
 
   // Invalidate Cache
   await RedisService.del(STORY_CLAIM_REDIS_KEYS.CLAIMS_STREAM(stream._id.toString()));
+  await RedisService.del(
+    STORY_CLAIM_REDIS_KEYS.CLAIMS_GIFT(claim.giftItem.toString()),
+  );
 
   // Broadcast Unpin to all viewers
   safeEmitToRoom(`stream:${stream._id.toString()}`, 'story_claim_unpinned', {
@@ -426,7 +559,6 @@ const awardGiftLive = async (userId: string, claimId: string) => {
   let awardedClaim: any;
   let awardedStream: any;
   let awardedGift: any;
-  let winnerUser: any;
 
   try {
     // 1. Fetch Claim within Session
@@ -571,11 +703,14 @@ const awardGiftLive = async (userId: string, claimId: string) => {
 
   // Cache Invalidation
   await RedisService.del(STORY_CLAIM_REDIS_KEYS.CLAIMS_STREAM(awardedStream._id.toString()));
+  await RedisService.del(
+    STORY_CLAIM_REDIS_KEYS.CLAIMS_GIFT(awardedGift._id.toString()),
+  );
   await RedisService.del('gifts:featured');
   await RedisService.delByPattern('gifts:public:page:*');
 
   // Fetch populated winner details for response and real-time celebration
-  winnerUser = await User.findById(awardedClaim.applicant).select(
+  const winnerUser = await User.findById(awardedClaim.applicant).select(
     'fullName profileImage neighborhoodLabel',
   );
 
@@ -676,6 +811,7 @@ const getPickupInstructions = async (
 export const StoryClaimService = {
   submitStoryClaim,
   getClaimsForStream,
+  getClaimsForGift,
   voteStoryClaim,
   pinStoryClaim,
   unpinStoryClaim,

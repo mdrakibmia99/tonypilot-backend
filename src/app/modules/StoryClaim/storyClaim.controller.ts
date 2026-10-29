@@ -36,14 +36,32 @@ const getClaimsForStream = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const getClaimsForGift = catchAsync(async (req: Request, res: Response) => {
+  const giftItemId = req.params.giftItemId as string;
+  const result = await StoryClaimService.getClaimsForGift(
+    giftItemId,
+    req.query,
+  );
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Gift stories retrieved successfully',
+    meta: result.meta,
+    data: result.data,
+  });
+});
+
 const voteStoryClaim = catchAsync(async (req: Request, res: Response) => {
   const userId = req.user.userId;
-  const claimId = req.params.LiveStoryClaim as string;
+  const giftItemId = req.params.giftItemId as string;
+  const storyClaimId = req.params.storyClaimId as string;
   const { voteType } = req.body;
 
   const result = await StoryClaimService.voteStoryClaim(
     userId,
-    claimId,
+    giftItemId,
+    storyClaimId,
     voteType,
   );
 
@@ -119,6 +137,7 @@ const getPickupInstructions = catchAsync(async (req: Request, res: Response) => 
 export const StoryClaimController = {
   submitStoryClaim,
   getClaimsForStream,
+  getClaimsForGift,
   voteStoryClaim,
   pinStoryClaim,
   unpinStoryClaim,

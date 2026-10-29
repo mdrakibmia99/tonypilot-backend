@@ -3,8 +3,39 @@ import fs from 'fs';
 import multer from 'multer';
 import config from '../config';
 
-const fileUpload = (uploadDirectory: string) => {
-  console.log('config.storage_provider', config.storage_provider);
+type TFileUploadOptions = {
+  maxFileSize?: number;
+  allowedMimeTypes?: string[];
+};
+
+const defaultAllowedMimeTypes = [
+  'image/png',
+  'image/jpg',
+  'image/jpeg',
+  'image/svg',
+  'image/svg+xml',
+  'image/webp',
+  'video/mp4',
+  'video/avi',
+  'video/mov',
+  'video/mkv',
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'audio/mpeg',
+  'audio/wav',
+  'audio/x-wav',
+  'audio/webm',
+  'audio/ogg',
+  'audio/mp4',
+  'audio/aac',
+  'application/octet-stream',
+];
+
+const fileUpload = (
+  uploadDirectory: string,
+  options: TFileUploadOptions = {},
+) => {
   let storage: multer.StorageEngine;
 
   if (config?.storage_provider === 's3') {
@@ -46,41 +77,11 @@ const fileUpload = (uploadDirectory: string) => {
   return multer({
     storage,
     limits: {
-      fileSize: 100 * 1024 * 1024,
+      fileSize: options.maxFileSize ?? 100 * 1024 * 1024,
     },
     fileFilter: (req: Request, file, cb) => {
-      const allowedMimeTypes = [
-        // Images
-        'image/png',
-        'image/jpg',
-        'image/jpeg',
-        'image/svg',
-        'image/svg+xml',
-        'image/webp',
-
-        // Videos
-        'video/mp4',
-        'video/avi',
-        'video/mov',
-        'video/mkv',
-
-        // Documents
-        'application/pdf',
-        'application/msword',
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-
-        // Audio
-        'audio/mpeg',
-        'audio/wav',
-        'audio/x-wav',
-        'audio/webm',
-        'audio/ogg',
-        'audio/mp4',
-        'audio/aac',
-
-        // Optional
-        'application/octet-stream',
-      ];
+      const allowedMimeTypes =
+        options.allowedMimeTypes ?? defaultAllowedMimeTypes;
 
       if (allowedMimeTypes.includes(file.mimetype)) {
         cb(null, true);

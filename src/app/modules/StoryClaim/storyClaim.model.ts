@@ -18,7 +18,7 @@ const liveStoryClaimSchema = new Schema<TLiveStoryClaim>(
     stream: {
       type: Schema.Types.ObjectId,
       ref: 'LiveStream',
-      required: [true, 'Stream is required'],
+      default: null,
       index: true,
     },
     giftItem: {
@@ -27,6 +27,14 @@ const liveStoryClaimSchema = new Schema<TLiveStoryClaim>(
       required: [true, 'Gift item is required'],
     },
 
+    storyTitle: {
+      type: String,
+      required: [true, 'Story title is required'],
+      default: 'My Story',
+      trim: true,
+      maxlength: [200, 'Story title cannot exceed 200 characters'],
+      minlength: [3, 'Story title must be at least 3 characters'],
+    },
     storyStatement: {
       type: String,
       required: [true, 'Story statement is required'],
@@ -97,9 +105,9 @@ const liveStoryClaimSchema = new Schema<TLiveStoryClaim>(
 
 // ===== INDEXES =====
 liveStoryClaimSchema.index({ stream: 1, status: 1, createdAt: -1 });
-liveStoryClaimSchema.index({ applicant: 1, stream: 1 }, { unique: true });
+liveStoryClaimSchema.index({ applicant: 1, giftItem: 1 }, { unique: true });
 liveStoryClaimSchema.index({ stream: 1, isPinned: 1 });
-liveStoryClaimSchema.index({ giftItem: 1, status: 1 });
+liveStoryClaimSchema.index({ giftItem: 1, status: 1, createdAt: -1 });
 liveStoryClaimSchema.index({ adminReviewStatus: 1 });
 
 // Soft-delete filter

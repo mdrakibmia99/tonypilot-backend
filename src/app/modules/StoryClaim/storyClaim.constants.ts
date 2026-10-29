@@ -30,10 +30,14 @@ export const VOTE_TYPE = {
 
 export type TVoteType = (typeof VOTE_TYPE)[keyof typeof VOTE_TYPE];
 
-export const STORY_CLAIM_SEARCHABLE_FIELDS = ['storyStatement'];
+export const STORY_CLAIM_SEARCHABLE_FIELDS = [
+  'storyTitle',
+  'storyStatement',
+];
 
 export const STORY_CLAIM_REDIS_KEYS = {
   CLAIMS_STREAM: (streamId: string) => `claims:stream:${streamId}`,
+  CLAIMS_GIFT: (giftItemId: string) => `claims:gift:${giftItemId}`,
   STREAM_PINNED: (streamId: string) => `stream:${streamId}:pinned_claim`,
   TTL: 15, // 15 seconds
 } as const;

@@ -44,6 +44,10 @@ const giftItemSchema = new Schema<TGiftItem>(
       trim: true,
       maxlength: [2000, 'Description cannot exceed 2000 characters'],
     },
+    pickUpPreference:{
+      type:String,
+      required:[true,"need add pickup preference"]
+    },
     condition: {
       type: String,
       enum: Object.values(GIFT_CONDITION),
@@ -55,15 +59,10 @@ const giftItemSchema = new Schema<TGiftItem>(
       required: [true, 'Category is required'],
     },
     estimatedValue: {
+      // hour count
       type: Number,
-      min: 0,
-      default: 0,
+      enum:[12,24,48]
     },
-    tags: {
-      type: [String],
-      default: [],
-    },
-
     // Step 3: Location & Pickup
     pickupAddress: {
       address: { type: String, required: true },

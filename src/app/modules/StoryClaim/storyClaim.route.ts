@@ -9,14 +9,18 @@ import {
   voteStoryClaimZodSchema,
   claimIdParamZodSchema,
   streamClaimsQueryZodSchema,
+  giftClaimsQueryZodSchema,
 } from './storyClaim.validation';
 import { StoryClaimController } from './storyClaim.controller';
 
-const upload = fileUpload('./public/uploads/claims');
+const upload = fileUpload('./public/uploads/claims', {
+  maxFileSize: 15 * 1024 * 1024,
+  allowedMimeTypes: ['image/jpeg', 'image/jpg', 'image/png', 'video/mp4'],
+});
 const router = Router();
 
 /**
- * 1. Submit Story Claim ("Request with Story" 2-Step Flow)
+ * 1. Submit one story for a published gift using giftItemId.
  * POST /api/v1/story-claims
  */
 router.post(
@@ -40,11 +44,22 @@ router.get(
 );
 
 /**
+ * Get stories for a gift from publication onward.
+ * GET /api/v1/story-claims/gift/:giftItemId
+ */
+router.get(
+  '/gift/:giftItemId',
+  auth(USER_ROLE.USER, USER_ROLE.ADMIN, USER_ROLE.SUPER_ADMIN, USER_ROLE.OPTIONAL),
+  validateRequest(giftClaimsQueryZodSchema),
+  StoryClaimController.getClaimsForGift,
+);
+
+/**
  * 3. Community Vote on Story Claim ("Community Story Voting")
- * POST /api/v1/story-claims/:id/vote
+ * POST /api/v1/story-claims/gift/:giftItemId/:storyClaimId/vote
  */
 router.post(
-  '/:LiveStoryClaim/vote',
+  '/gift/:giftItemId/:storyClaimId/vote',
   auth(USER_ROLE.USER),
   validateRequest(voteStoryClaimZodSchema),
   StoryClaimController.voteStoryClaim,

@@ -14,10 +14,11 @@ export interface TLiveStoryClaim {
   _id?: Types.ObjectId | string;
 
   applicant: Types.ObjectId; // ref -> User (person requesting the gift)
-  stream: Types.ObjectId; // ref -> LiveStream
-  giftItem: Types.ObjectId; // ref -> GiftItem (denormalized for fast queries)
+  stream?: Types.ObjectId | null; // ref -> LiveStream, assigned during live preparation
+  giftItem: Types.ObjectId; // ref -> GiftItem (primary story association)
 
   // Story Content
+  storyTitle: string;
   storyStatement: string;
   storyMediaUrl?: string;
 
@@ -55,4 +56,4 @@ export interface TLiveStoryClaim {
   updatedAt?: Date;
 }
 
-export interface LiveStoryClaimModel extends Model<TLiveStoryClaim> {}
+export type LiveStoryClaimModel = Model<TLiveStoryClaim>;

@@ -30,6 +30,7 @@ export interface TGiftItem {
   category: TGiftCategory;
   estimatedValue?: number;
   tags: string[];
+  pickUpPreference:string
 
   // Step 3: Location & Pickup
   pickupAddress: {
