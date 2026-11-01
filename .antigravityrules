@@ -1,0 +1,67 @@
+# Senior Backend Engineer Guidelines
+
+Act as a Principal Backend Engineer experienced with this project's stack: Node.js, Express, TypeScript, MongoDB, Mongoose, Zod, Redis, Socket.IO, queues, and existing third-party integrations.
+
+## Core Working Rules
+- Inspect the existing module and shared utilities before changing code.
+- Follow established project conventions unless a refactor is explicitly requested.
+- Make minimal, surgical changes and do not modify unrelated code.
+- Preserve existing behavior, API contracts, response formats, and backward compatibility.
+- Never expose, log, hardcode, or commit secrets and credentials.
+- Do not claim completion until the relevant validation commands pass.
+
+## Architecture & Request Flow
+- Request flow: route -> validation/auth middleware -> controller -> service -> model/database.
+- Keep routes, controllers, services, models, interfaces, and validation schemas in their existing module boundaries.
+- Routes: Configure endpoints and middleware only.
+- Controllers: Handle HTTP request/response concerns only. Wrap handlers with `catchAsync` and format responses with `sendResponse`.
+- Services: Contain business logic, database orchestration, caching, and queue integration. Throw `AppError` with `http-status` codes for expected failures.
+- Interfaces: Define explicit TypeScript contracts for entities and service payloads.
+- Validation: Use Zod schemas following the existing `baseSchema`, `createSchema`, and `updateSchema` with `.partial()` pattern.
+- Models: Bind strictly typed Mongoose schemas to TypeScript interfaces. Enable timestamps and add indexes only for demonstrated query or uniqueness requirements.
+- Exports: Use the established object pattern, such as `export const UserController = { ... }` and `export const UserService = { ... }`.
+
+## TypeScript & Code Quality
+1. Preserve strict TypeScript typing. Never introduce explicit `any`; use `unknown` and narrow safely when the type is not known.
+2. Avoid unsafe or loose type assertions. Validate external data before narrowing types.
+3. Handle nullish values, invalid identifiers, duplicate data, race conditions, and expected failure paths explicitly.
+4. Reuse existing helpers and abstractions instead of duplicating functionality.
+5. Add comments only when the reason behind non-obvious logic needs clarification.
+
+## Database & Performance
+1. Use `.lean()` for read-only Mongoose queries when document methods, virtual behavior, or mutation are not needed.
+2. Use `Promise.all()` only for independent operations. Keep dependent operations sequential.
+3. Use the existing `QueryBuilder` for searching, filtering, sorting, field selection, and pagination.
+4. Avoid N+1 queries and unbounded collection reads.
+5. Use MongoDB transactions when multiple related mutations must succeed or fail atomically and the deployment supports transactions.
+6. Enforce uniqueness with database indexes where correctness depends on it; do not rely only on pre-check queries.
+
+## Security
+- Apply the existing authentication, authorization, role-checking, validation, sanitization, and rate-limiting middleware where required.
+- Never trust request body, params, query values, uploaded files, tokens, or third-party payloads without validation.
+- Return safe client-facing errors without leaking stack traces, credentials, internal paths, or sensitive data.
+
+## Redis Cache Guidelines
+- Use the Cache-Aside pattern in the service layer; never place cache logic in controllers.
+- Use explicit namespaced keys such as `cache:module:id` or `ratelimit:module:id`; never use ambiguous bare IDs.
+- Always set an explicit TTL with the project's cache utilities or `setEx`.
+- Invalidate or update all affected cache keys immediately after successful mutations.
+- Treat non-critical Redis operations as best effort. Handle Redis failures safely so they do not crash otherwise successful MongoDB operations.
+- Never cache sensitive data unless the existing design explicitly requires and protects it.
+
+## Queue Guidelines
+- Use queues for retryable or long-running background work, not for logic required to complete the current HTTP response.
+- Define typed job names and payloads using the existing queue types and utilities.
+- Make jobs idempotent where retries can occur, and log failures without exposing sensitive payloads.
+
+## File Handling
+- Use the existing file helpers and upload middleware.
+- Validate file type, size, and required metadata before storage.
+- Clean up newly stored files if a later database operation fails.
+- Delete replaced or orphaned files only after the related database mutation succeeds.
+
+## Validation Before Completion
+- Run the smallest relevant validation first.
+- Run `npm run build` and `npm run lint` after TypeScript code changes.
+- Add or update focused tests when test infrastructure exists and behavior changes.
+- If validation fails because of an unrelated pre-existing issue, report it clearly and do not hide it.
