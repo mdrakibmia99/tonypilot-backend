@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-empty-object-type */
 import { Types, Model } from 'mongoose';
 
 export type TGiftCondition = 'new' | 'like_new' | 'good' | 'fair' | 'worn';
@@ -18,6 +19,7 @@ export type TGiftCategory =
 export interface TGiftItem {
   _id?: Types.ObjectId | string;
   host: Types.ObjectId;
+  estimateTime: Date;
 
   // Step 1: Photos & Title
   title: string;
@@ -28,7 +30,7 @@ export interface TGiftItem {
   description: string;
   condition: TGiftCondition;
   category: TGiftCategory;
-  estimatedValue?: number;
+  estimatedValue: 12 | 24 | 48;
   tags: string[];
   pickUpPreference:string
 

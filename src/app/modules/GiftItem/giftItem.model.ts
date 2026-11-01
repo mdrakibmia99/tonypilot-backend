@@ -59,9 +59,13 @@ const giftItemSchema = new Schema<TGiftItem>(
       required: [true, 'Category is required'],
     },
     estimatedValue: {
-      // hour count
       type: Number,
-      enum:[12,24,48]
+      enum: [12, 24, 48],
+      required: [true, 'Estimated duration is required'],
+    },
+    estimateTime: {
+      type: Date,
+      required: [true, 'Estimate time is required'],
     },
     // Step 3: Location & Pickup
     pickupAddress: {

@@ -14,6 +14,9 @@ import {
 import { TIER_LIMITS } from '../Subscription/subscription.constants';
 import { USER_ROLE } from '../user/user.constants';
 
+const calculateEstimateTime = (hours: 12 | 24 | 48): Date =>
+  new Date(Date.now() + hours * 60 * 60 * 1000);
+
 // ==========================================
 // 1. CREATE GIFT ITEM (5-STEP MOBILE WIZARD)
 // ==========================================
@@ -60,9 +63,13 @@ const createGiftItem = async (
   if (finalImages.length === 0) {
     throw new AppError(httpStatus.BAD_REQUEST, 'At least 1 photo is required to publish a gift.');
   }
+  if (!payload.estimatedValue) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Estimated duration is required');
+  }
 
   const newGift = await GiftItem.create({
     ...payload,
+    estimateTime: calculateEstimateTime(payload.estimatedValue),
     host: new Types.ObjectId(userId),
     images: finalImages,
     coverImageIndex: payload.coverImageIndex || 0,
@@ -249,6 +256,10 @@ const updateGiftItem = async (
   if (newImageFiles && newImageFiles.length > 0) {
     const uploaded = newImageFiles.map(f => f.path.replace(/\\/g, '/').replace(/^public\//, '/'));
     payload.images = [...(payload.images || gift.images), ...uploaded].slice(0, 5);
+  }
+
+  if (payload.estimatedValue) {
+    payload.estimateTime = calculateEstimateTime(payload.estimatedValue);
   }
 
   const updated = await GiftItem.findByIdAndUpdate(id, payload, { new: true, runValidators: true });
