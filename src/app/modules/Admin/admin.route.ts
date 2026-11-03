@@ -48,6 +48,24 @@ router.patch(
   validateRequest(adminValidation.userModerationActionZodSchema),
   adminController.takeUserModerationAction,
 );
+router.get(
+  '/users',
+  auth(USER_ROLE.ADMIN, USER_ROLE.SUPER_ADMIN),
+  adminController.getSupervisedUsers,
+);
+
+router.get(
+  '/users/supervision',
+  auth(USER_ROLE.ADMIN, USER_ROLE.SUPER_ADMIN),
+  adminController.getSupervisedUsers,
+);
+
+router.get(
+  '/users/:id/inspect',
+  auth(USER_ROLE.ADMIN, USER_ROLE.SUPER_ADMIN),
+  adminController.getUserInspectionDetails,
+);
+
 
 // ==========================================
 // 4. STORIES & CLAIMS AUDIT

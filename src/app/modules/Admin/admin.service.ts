@@ -583,6 +583,250 @@ const deleteUser = async (userData: IJwtPayload, targetId: string) => {
   return user;
 };
 
+/**
+ * 5. GET SUPERVISED USERS (COMMUNITY MEMBER & USER SUPERVISION)
+ * Returns overview statistics + paginated & filtered user list formatted
+ * for the admin supervision dashboard.
+ */
+const getSupervisedUsers = async (query: Record<string, any>) => {
+  const page = Number(query.page) || 1;
+  const limit = Number(query.limit) || 10;
+  const skip = (page - 1) * limit;
+  const now = new Date();
+
+  // 1. Calculate Summary for Top Badges
+  const [totalSupervisedMembers, totalActive, totalUnderReview, totalSuspended, totalBlocked] =
+    await Promise.all([
+      User.countDocuments({ isDeleted: false }),
+      User.countDocuments({
+        isDeleted: false,
+        isBlocked: { $ne: true },
+        $or: [
+          { isSuspended: false },
+          { isSuspended: { $exists: false } },
+          { suspendedUntil: { $lte: now } },
+          { suspendedUntil: null },
+        ],
+      }),
+      User.countDocuments({
+        isDeleted: false,
+        $or: [{ hasCompletedProfile: false }, { isVerifiedByAdmin: false }],
+      }),
+      User.countDocuments({
+        isDeleted: false,
+        isSuspended: true,
+        suspendedUntil: { $gt: now },
+      }),
+      User.countDocuments({
+        isDeleted: false,
+        isBlocked: true,
+      }),
+    ]);
+
+  const summary = {
+    totalSupervisedMembers,
+    totalActive,
+    totalUnderReview,
+    totalSuspended,
+    totalBlocked,
+  };
+
+  // 2. Base Filter
+  const filterConditions: Record<string, any> = {
+    isDeleted: false,
+  };
+
+  // Filter by Role ('all', 'user', 'admin', 'super_admin')
+  if (query.role && query.role !== 'all') {
+    filterConditions.role = query.role;
+  }
+
+  // Filter by Status ('all', 'active', 'under_review', 'suspended', 'blocked', 'banned')
+  if (query.status && query.status !== 'all') {
+    const statusLower = String(query.status).toLowerCase();
+    if (statusLower === 'active') {
+      filterConditions.isBlocked = { $ne: true };
+      filterConditions.$or = [
+        { isSuspended: false },
+        { isSuspended: { $exists: false } },
+        { suspendedUntil: { $lte: now } },
+        { suspendedUntil: null },
+      ];
+    } else if (statusLower === 'suspended') {
+      filterConditions.isSuspended = true;
+      filterConditions.suspendedUntil = { $gt: now };
+    } else if (statusLower === 'blocked' || statusLower === 'banned') {
+      filterConditions.isBlocked = true;
+    } else if (statusLower === 'under_review' || statusLower === 'under review') {
+      filterConditions.$or = [
+        { hasCompletedProfile: false },
+        { isVerifiedByAdmin: false },
+      ];
+    }
+  }
+
+  // Search across name, email, neighborhood, role, address
+  if (query.searchTerm) {
+    const searchRegex = { $regex: query.searchTerm, $options: 'i' };
+    filterConditions.$or = [
+      { fullName: searchRegex },
+      { email: searchRegex },
+      { neighborhoodLabel: searchRegex },
+      { 'address.address': searchRegex },
+      { role: searchRegex },
+    ];
+  }
+
+  // 3. Count matching items for pagination
+  const total = await User.countDocuments(filterConditions);
+  const totalPage = Math.ceil(total / limit);
+
+  // 4. Fetch Users
+  const sortOption = (query.sort as string) || '-createdAt';
+
+  const users = await User.find(filterConditions)
+    .sort(sortOption)
+    .skip(skip)
+    .limit(limit)
+    .select(
+      'fullName email profileImage phone role neighborhoodLabel address giftGiven totalGiftsGiven giftReceived totalGiftsReceived totalStreamsHosted liveTouch totalStoriesClaimed communityTrustScore isBlocked isSuspended suspendedUntil hasCompletedProfile isVerifiedByAdmin lastActiveAt createdAt',
+    )
+    .lean();
+
+  // 5. Format each user for dashboard view
+  const formattedUsers = users.map((user: any) => {
+    let accountStatus: 'ACTIVE' | 'UNDER REVIEW' | 'SUSPENDED' | 'BLOCKED' = 'ACTIVE';
+    if (user.isBlocked) {
+      accountStatus = 'BLOCKED';
+    } else if (user.isSuspended && user.suspendedUntil && new Date(user.suspendedUntil) > now) {
+      accountStatus = 'SUSPENDED';
+    } else if (user.hasCompletedProfile === false || user.isVerifiedByAdmin === false) {
+      accountStatus = 'UNDER REVIEW';
+    }
+
+    const giftGiven = user.giftGiven ?? user.totalGiftsGiven ?? 0;
+    const giftReceived = user.giftReceived ?? user.totalGiftsReceived ?? 0;
+    const formattedGiveReceive = `${giftGiven} Given / ${giftReceived} Recv`;
+
+    const location = user.neighborhoodLabel || user.address?.address || 'Austin, TX';
+
+    let communityRole = 'Member';
+    if (user.role === 'admin' || user.role === 'super_admin') {
+      communityRole = 'Community Leader';
+    } else if (giftGiven >= 10) {
+      communityRole = 'Community Leader';
+    } else if (giftGiven >= 5) {
+      communityRole = 'Verified Donor';
+    } else if (giftGiven > 0) {
+      communityRole = 'Donor';
+    } else if (user.totalStoriesClaimed > 0) {
+      communityRole = 'Applicant';
+    } else if (user.hasCompletedProfile === false) {
+      communityRole = 'New Applicant';
+    }
+
+    return {
+      _id: user._id,
+      fullName: user.fullName || 'New Member',
+      email: user.email,
+      profileImage: user.profileImage || '',
+      phone: user.phone?.fullNumber || user.phone?.number || '',
+      role: user.role,
+      communityRole,
+      neighborhoodLabel: location,
+      giftGiven,
+      giftReceived,
+      formattedGiveReceive,
+      totalStreamsHosted: user.totalStreamsHosted ?? user.liveTouch ?? 0,
+      totalStoriesClaimed: user.totalStoriesClaimed ?? 0,
+      communityTrustScore: user.communityTrustScore ?? 50,
+      accountStatus,
+      isBlocked: user.isBlocked ?? false,
+      isSuspended: user.isSuspended ?? false,
+      suspendedUntil: user.suspendedUntil || null,
+      hasCompletedProfile: user.hasCompletedProfile ?? false,
+      lastActiveAt: user.lastActiveAt || null,
+      createdAt: user.createdAt,
+    };
+  });
+
+  return {
+    summary,
+    meta: {
+      page,
+      limit,
+      total,
+      totalPage,
+    },
+    data: formattedUsers,
+  };
+};
+
+/**
+ * 6. GET USER INSPECTION DETAILS FOR MODAL
+ */
+const getUserInspectionDetails = async (targetUserId: string) => {
+  const user = await User.findById(targetUserId).lean();
+  if (!user || user.isDeleted) {
+    throw new AppError(httpStatus.NOT_FOUND, 'User not found');
+  }
+
+  const [recentGifts, recentClaims, recentStreams, auditLogs] = await Promise.all([
+    GiftItem.find({ host: targetUserId, isDeleted: false })
+      .sort('-createdAt')
+      .limit(5)
+      .select('title images coverImageIndex condition category claimState sportLite createdAt'),
+    LiveStoryClaim.find({ applicant: targetUserId, isDeleted: false })
+      .sort('-createdAt')
+      .limit(5)
+      .populate('giftItem', 'title images coverImageIndex')
+      .select('storyTitle status upvotes downvotes createdAt'),
+    LiveStream.find({ host: targetUserId, isDeleted: false })
+      .sort('-createdAt')
+      .limit(5)
+      .select('channelName status peakViewers actualDurationSeconds createdAt'),
+    AdminAuditLog.find({ targetUser: targetUserId })
+      .sort('-createdAt')
+      .limit(10)
+      .populate('performedBy', 'fullName email role'),
+  ]);
+
+  const giftGiven = user.giftGiven ?? user.totalGiftsGiven ?? 0;
+  const giftReceived = user.giftReceived ?? user.totalGiftsReceived ?? 0;
+
+  return {
+    user: {
+      _id: user._id,
+      fullName: user.fullName,
+      email: user.email,
+      phone: user.phone?.fullNumber || user.phone?.number || '',
+      profileImage: user.profileImage || '',
+      role: user.role,
+      neighborhoodLabel: user.neighborhoodLabel || user.address?.address || '',
+      communityTrustScore: user.communityTrustScore ?? 50,
+      giftGiven,
+      giftReceived,
+      totalStreamsHosted: user.totalStreamsHosted ?? user.liveTouch ?? 0,
+      totalStoriesClaimed: user.totalStoriesClaimed ?? 0,
+      isBlocked: user.isBlocked ?? false,
+      isSuspended: user.isSuspended ?? false,
+      suspendedUntil: user.suspendedUntil || null,
+      hasCompletedProfile: user.hasCompletedProfile ?? false,
+      lastActiveAt: user.lastActiveAt || null,
+      createdAt: user.createdAt,
+    },
+    stats: {
+      totalGifts: giftGiven,
+      totalClaims: user.totalStoriesClaimed ?? recentClaims.length,
+      totalStreams: user.totalStreamsHosted ?? recentStreams.length,
+    },
+    recentGifts,
+    recentClaims,
+    recentStreams,
+    auditLogs,
+  };
+};
+
 export const adminService = {
   getTelemetryOverview,
   getActiveLiveStreamsControlRoom,
@@ -592,6 +836,8 @@ export const adminService = {
   reviewStoryClaim,
   getAdminAuditLogs,
   getRevenueAnalytics,
+  getSupervisedUsers,
+  getUserInspectionDetails,
   blockedUser,
   deleteUser,
 };

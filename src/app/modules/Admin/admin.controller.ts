@@ -145,6 +145,27 @@ const deleteUser = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const getSupervisedUsers = catchAsync(async (req: Request, res: Response) => {
+  const result = await adminService.getSupervisedUsers(req.query);
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Supervised members retrieved successfully',
+    data: result,
+  });
+});
+
+const getUserInspectionDetails = catchAsync(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const result = await adminService.getUserInspectionDetails(id as string);
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'User inspection details retrieved successfully',
+    data: result,
+  });
+});
+
 export const adminController = {
   getTelemetryOverview,
   getActiveLiveStreamsControlRoom,
@@ -154,6 +175,8 @@ export const adminController = {
   reviewStoryClaim,
   getAdminAuditLogs,
   getRevenueAnalytics,
+  getSupervisedUsers,
+  getUserInspectionDetails,
   blockedUser,
   deleteUser,
 };
