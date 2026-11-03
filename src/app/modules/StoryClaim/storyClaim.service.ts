@@ -16,6 +16,7 @@ import { AdminAuditLog } from '../AuditLog/auditLog.model';
 import { LiveStoryClaim } from './storyClaim.model';
 import {
   STORY_CLAIM_STATUS,
+  ADMIN_REVIEW_STATUS,
   STORY_CLAIM_REDIS_KEYS,
   STORY_CLAIM_SEARCHABLE_FIELDS,
   TVoteType,
@@ -845,6 +846,65 @@ const getMyStoryClaims = async (
   return { meta, data };
 };
 
+/**
+ * Get public story claims sorted by highest votes (upvotes) with pagination
+ */
+const getPublicStoryClaims = async (query: Record<string, any>) => {
+  const filterConditions: Record<string, any> = {
+    isDeleted: false,
+    adminReviewStatus: { $ne: ADMIN_REVIEW_STATUS.REMOVED },
+  };
+
+  const queryCopy = { ...query };
+
+  if (queryCopy.minUpvotes !== undefined) {
+    filterConditions.upvotes = { $gte: Number(queryCopy.minUpvotes) };
+    delete queryCopy.minUpvotes;
+  }
+
+  if (queryCopy.giftItemId) {
+    filterConditions.giftItem = queryCopy.giftItemId;
+    delete queryCopy.giftItemId;
+  }
+
+  if (queryCopy.streamId) {
+    filterConditions.stream = queryCopy.streamId;
+    delete queryCopy.streamId;
+  }
+
+  // Default sort by most upvotes first, then newest
+  const modifiedQuery = {
+    sort: '-upvotes -createdAt',
+    ...queryCopy,
+  };
+
+  const baseQuery = LiveStoryClaim.find(filterConditions)
+    .populate({
+      path: 'giftItem',
+      populate: {
+        path: 'host',
+        select: 'fullName profileImage neighborhoodLabel communityTrustScore',
+      },
+    })
+    .populate('stream')
+    .populate(
+      'applicant',
+      'fullName profileImage neighborhoodLabel communityTrustScore',
+    );
+
+  const claimQueryBuilder = new QueryBuilder(baseQuery, modifiedQuery)
+    .search(STORY_CLAIM_SEARCHABLE_FIELDS)
+    .filter()
+    .sort()
+    .paginate()
+    .fields();
+
+  const meta = await claimQueryBuilder.countTotal();
+  const data = await claimQueryBuilder.modelQuery;
+
+  return { meta, data };
+};
+
 export const StoryClaimService = {
   submitStoryClaim,
   getClaimsForStream,
@@ -855,4 +915,5 @@ export const StoryClaimService = {
   awardGiftLive,
   getPickupInstructions,
   getMyStoryClaims,
+  getPublicStoryClaims,
 };

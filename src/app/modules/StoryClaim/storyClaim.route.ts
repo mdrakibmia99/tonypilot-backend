@@ -39,6 +39,8 @@ router.get(
   auth(USER_ROLE.USER, USER_ROLE.ADMIN, USER_ROLE.SUPER_ADMIN),
   StoryClaimController.getMyStoryClaims,
 );
+// create a public story claim route for public to see the story claim
+router.get('/for-public-view', StoryClaimController.getPublicStoryClaims);
 /**
  * 2. Get Story Claims for Live Stream ("Live Story Claims" Bottom Sheet)
  * GET /api/v1/story-claims/stream/:streamId

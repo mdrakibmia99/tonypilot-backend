@@ -147,6 +147,18 @@ const getMyStoryClaims = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const getPublicStoryClaims = catchAsync(async (req: Request, res: Response) => {
+  const result = await StoryClaimService.getPublicStoryClaims(req.query);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Public story claims retrieved successfully',
+    meta: result.meta,
+    data: result.data,
+  });
+});
+
 export const StoryClaimController = {
   submitStoryClaim,
   getClaimsForStream,
@@ -157,4 +169,5 @@ export const StoryClaimController = {
   awardGiftLive,
   getPickupInstructions,
   getMyStoryClaims,
+  getPublicStoryClaims,
 };

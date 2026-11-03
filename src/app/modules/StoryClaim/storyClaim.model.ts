@@ -104,6 +104,7 @@ const liveStoryClaimSchema = new Schema<TLiveStoryClaim>(
 );
 
 // ===== INDEXES =====
+liveStoryClaimSchema.index({ upvotes: -1, createdAt: -1 });
 liveStoryClaimSchema.index({ stream: 1, status: 1, createdAt: -1 });
 liveStoryClaimSchema.index({ applicant: 1, giftItem: 1 }, { unique: true });
 liveStoryClaimSchema.index({ stream: 1, isPinned: 1 });
