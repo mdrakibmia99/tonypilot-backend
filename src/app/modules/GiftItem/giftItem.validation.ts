@@ -56,8 +56,17 @@ const updateGiftItemSchema = z.object({
     pickupWindowStart: z.string().optional(),
     pickupWindowEnd: z.string().optional(),
     specialInstructions: z.string().max(1000).optional(),
+    sportLite: z.boolean().optional(),
     isPublished: z.boolean().optional(),
   }),
+});
+
+const toggleSpotlightSchema = z.object({
+  body: z
+    .object({
+      sportLite: z.boolean().optional(),
+    })
+    .optional(),
 });
 
 const reviewGiftItemSchema = z.object({
@@ -76,4 +85,5 @@ export const GiftItemValidations = {
   createGiftItemSchema,
   updateGiftItemSchema,
   reviewGiftItemSchema,
+  toggleSpotlightSchema,
 };

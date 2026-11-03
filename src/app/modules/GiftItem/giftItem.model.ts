@@ -132,6 +132,10 @@ const giftItemSchema = new Schema<TGiftItem>(
       enum: Object.values(GIFT_CLAIM_STATE),
       default: GIFT_CLAIM_STATE.AVAILABLE,
     },
+    sportLite: {
+      type: Boolean,
+      default: false,
+    },
     isPublished: {
       type: Boolean,
       default: true,
@@ -202,6 +206,7 @@ giftItemSchema.index({ 'pickupAddress.location': '2dsphere' });
 giftItemSchema.index({ claimState: 1, verificationStatus: 1, isPublished: 1, isDeleted: 1 });
 giftItemSchema.index({ host: 1, isDeleted: 1, createdAt: -1 });
 giftItemSchema.index({ category: 1, claimState: 1 });
+giftItemSchema.index({ sportLite: 1 });
 giftItemSchema.index({ createdAt: -1, isPublished: 1 });
 
 // Soft delete query filter

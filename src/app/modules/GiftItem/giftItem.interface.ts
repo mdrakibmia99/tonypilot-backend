@@ -55,6 +55,7 @@ export interface TGiftItem {
   // Step 5: Review & Publish
   verificationStatus: TGiftVerificationStatus;
   claimState: TGiftClaimState;
+  sportLite?: boolean;
   isPublished: boolean;
   publishedAt?: Date | null;
 

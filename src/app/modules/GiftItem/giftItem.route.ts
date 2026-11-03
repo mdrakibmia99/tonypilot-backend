@@ -33,6 +33,22 @@ router.post(
   GiftItemController.createGiftItem
 );
 
+// ==========================================
+// ADMIN LISTINGS MONITORING & SPOTLIGHT
+// ==========================================
+router.get(
+  '/listings-monitoring',
+  auth(USER_ROLE.ADMIN, USER_ROLE.SUPER_ADMIN),
+  GiftItemController.getListingsMonitoring
+);
+
+router.patch(
+  '/:id/spotlight',
+  auth(USER_ROLE.ADMIN, USER_ROLE.SUPER_ADMIN),
+  validateRequest(GiftItemValidations.toggleSpotlightSchema),
+  GiftItemController.toggleSpotlight
+);
+
 router.get('/:id', GiftItemController.getGiftItemById);
 
 router.patch(

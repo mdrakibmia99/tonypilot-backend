@@ -333,6 +333,188 @@ const reviewGiftItem = async (
   return gift;
 };
 
+/**
+ * 8. GET LISTINGS MONITORING FOR ADMIN DASHBOARD
+ * Returns overview statistics + paginated & filtered gift items table formatted
+ * exactly as required by the admin dashboard UI.
+ */
+const getListingsMonitoring = async (query: Record<string, any>) => {
+  const page = Number(query.page) || 1;
+  const limit = Number(query.limit) || 10;
+  const skip = (page - 1) * limit;
+
+  // 1. Calculate Summary for Admin Top Badges / Tabs
+  const [totalMonitoredListings, totalAvailable, totalClaimed, totalSpotlight] =
+    await Promise.all([
+      GiftItem.countDocuments({ isDeleted: false }),
+      GiftItem.countDocuments({
+        isDeleted: false,
+        claimState: GIFT_CLAIM_STATE.AVAILABLE,
+      }),
+      GiftItem.countDocuments({
+        isDeleted: false,
+        claimState: GIFT_CLAIM_STATE.CLAIMED,
+      }),
+      GiftItem.countDocuments({ isDeleted: false, sportLite: true }),
+    ]);
+
+  const summary = {
+    totalMonitoredListings,
+    totalAvailable,
+    totalClaimed,
+    totalSpotlight,
+  };
+
+  // 2. Build Filter Conditions
+  const filterConditions: Record<string, any> = {
+    isDeleted: false,
+  };
+
+  // Handle Tab / Status filter
+  if (query.status && query.status !== 'all') {
+    filterConditions.claimState = query.status;
+  } else if (query.claimState && query.claimState !== 'all') {
+    filterConditions.claimState = query.claimState;
+  }
+
+  // Handle Spotlight filter
+  if (query.sportLite !== undefined) {
+    filterConditions.sportLite = query.sportLite === 'true' || query.sportLite === true;
+  } else if (query.spotlight !== undefined) {
+    filterConditions.sportLite = query.spotlight === 'true' || query.spotlight === true;
+  }
+
+  // Handle Category filter
+  if (query.category && query.category !== 'all') {
+    filterConditions.category = query.category;
+  }
+
+  // Handle Condition filter
+  if (query.condition && query.condition !== 'all') {
+    filterConditions.condition = query.condition;
+  }
+
+  // 3. Search across title, donor (fullName/email), neighborhood, category
+  if (query.searchTerm) {
+    const searchRegex = { $regex: query.searchTerm, $options: 'i' };
+
+    const matchingUsers = await User.find({
+      $or: [
+        { fullName: searchRegex },
+        { email: searchRegex },
+        { neighborhoodLabel: searchRegex },
+      ],
+    }).select('_id');
+
+    const matchingHostIds = matchingUsers.map((u) => u._id);
+
+    filterConditions.$or = [
+      { title: searchRegex },
+      { category: searchRegex },
+      { pickUpPreference: searchRegex },
+      { 'pickupAddress.address': searchRegex },
+      { host: { $in: matchingHostIds } },
+    ];
+  }
+
+  // 4. Total matching count
+  const total = await GiftItem.countDocuments(filterConditions);
+  const totalPage = Math.ceil(total / limit);
+
+  // 5. Fetch items
+  const sortOption = (query.sort as string) || '-createdAt';
+
+  const items = await GiftItem.find(filterConditions)
+    .sort(sortOption)
+    .skip(skip)
+    .limit(limit)
+    .populate(
+      'host',
+      'fullName email profileImage isVerifiedByAdmin neighborhoodLabel communityTrustScore',
+    )
+    .lean();
+
+  const now = new Date();
+
+  // 6. Format each row to match dashboard structure
+  const formattedItems = items.map((item: any) => {
+    let remainingHours = 0;
+    if (item.estimateTime) {
+      const diffMs = new Date(item.estimateTime).getTime() - now.getTime();
+      remainingHours = Math.max(0, Math.round(diffMs / (1000 * 60 * 60)));
+    } else if (item.estimatedValue) {
+      remainingHours = item.estimatedValue;
+    }
+
+    const coverImage =
+      Array.isArray(item.images) && item.images.length > 0
+        ? item.images[item.coverImageIndex || 0] || item.images[0]
+        : '';
+
+    return {
+      _id: item._id,
+      title: item.title,
+      coverImage,
+      images: item.images,
+      coverImageIndex: item.coverImageIndex || 0,
+      pickUpPreference: item.pickUpPreference || 'Porch Pickup',
+      estimatedValue: item.estimatedValue,
+      estimateTime: item.estimateTime,
+      remainingHours,
+      remainingTimeFormatted: remainingHours > 0 ? `${remainingHours}h remaining` : 'Expired',
+      category: item.category,
+      condition: item.condition,
+      host: {
+        _id: item.host?._id,
+        fullName: item.host?.fullName || 'Anonymous Neighbor',
+        email: item.host?.email,
+        profileImage: item.host?.profileImage || '',
+        isVerifiedByAdmin: item.host?.isVerifiedByAdmin ?? false,
+        neighborhoodLabel:
+          item.host?.neighborhoodLabel || item.pickupAddress?.address || 'Community Area',
+        communityTrustScore: item.host?.communityTrustScore ?? 50,
+      },
+      pickupAddress: item.pickupAddress,
+      storyClaimCount: item.storyClaimCount || 0,
+      claimState: item.claimState,
+      verificationStatus: item.verificationStatus,
+      sportLite: item.sportLite ?? false,
+      isPublished: item.isPublished,
+      createdAt: item.createdAt,
+      updatedAt: item.updatedAt,
+    };
+  });
+
+  return {
+    summary,
+    meta: {
+      page,
+      limit,
+      total,
+      totalPage,
+    },
+    data: formattedItems,
+  };
+};
+
+/**
+ * 9. TOGGLE SPOTLIGHT (sportLite) ON/OFF
+ */
+const toggleSpotlight = async (id: string, sportLite?: boolean) => {
+  const gift = await GiftItem.findById(id);
+  if (!gift || gift.isDeleted) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Gift item not found');
+  }
+
+  gift.sportLite = sportLite !== undefined ? sportLite : !gift.sportLite;
+  await gift.save();
+
+  await RedisService.del(`gift:${id}`);
+  await RedisService.delByPattern('gifts:public:page:*');
+
+  return gift;
+};
+
 export const GiftItemService = {
   createGiftItem,
   getPublicAvailableGifts,
@@ -341,4 +523,6 @@ export const GiftItemService = {
   updateGiftItem,
   deleteGiftItem,
   reviewGiftItem,
+  getListingsMonitoring,
+  toggleSpotlight,
 };

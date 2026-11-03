@@ -112,6 +112,31 @@ const reviewGiftItem = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const getListingsMonitoring = catchAsync(async (req: Request, res: Response) => {
+  const result = await GiftItemService.getListingsMonitoring(req.query);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Admin listings monitoring data retrieved successfully',
+    data: result,
+  });
+});
+
+const toggleSpotlight = catchAsync(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { sportLite } = req.body;
+
+  const result = await GiftItemService.toggleSpotlight(id as string, sportLite);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: `Listing spotlight ${result.sportLite ? 'enabled' : 'disabled'} successfully`,
+    data: result,
+  });
+});
+
 export const GiftItemController = {
   createGiftItem,
   getPublicAvailableGifts,
@@ -120,4 +145,6 @@ export const GiftItemController = {
   updateGiftItem,
   deleteGiftItem,
   reviewGiftItem,
+  getListingsMonitoring,
+  toggleSpotlight,
 };
