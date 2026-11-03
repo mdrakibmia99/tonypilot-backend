@@ -8,6 +8,7 @@ import { chatRoutes } from '../modules/Chat/chat.route';
 import { messageRoutes } from '../modules/Message/message.route';
 import { subscriptionRoutes } from '../modules/Subscription/subscription.route';
 import { giftItemRoutes } from '../modules/GiftItem/giftItem.route';
+import { saveGiftRoutes } from '../modules/saveGift/saveGift.route';
 import { LiveStreamRoutes } from '../modules/LiveStream/liveStream.route';
 import { StoryClaimRoutes } from '../modules/StoryClaim/storyClaim.route';
 import { LiveCommentRoutes, ModerationRoutes } from '../modules/LiveComment/liveComment.route';
@@ -34,6 +35,10 @@ const moduleRoutes = [
   {
     path: '/gift-items',
     route: giftItemRoutes,
+  },
+  {
+    path: '/save-gifts',
+    route: saveGiftRoutes,
   },
   {
     path: '/subscriptions',

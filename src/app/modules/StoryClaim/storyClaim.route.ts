@@ -32,6 +32,13 @@ router.post(
   StoryClaimController.submitStoryClaim,
 );
 
+// add a api for get my story 
+// my all story 
+router.get(
+  '/my-stories',
+  auth(USER_ROLE.USER, USER_ROLE.ADMIN, USER_ROLE.SUPER_ADMIN),
+  StoryClaimController.getMyStoryClaims,
+);
 /**
  * 2. Get Story Claims for Live Stream ("Live Story Claims" Bottom Sheet)
  * GET /api/v1/story-claims/stream/:streamId

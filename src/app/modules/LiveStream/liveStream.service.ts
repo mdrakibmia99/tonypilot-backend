@@ -230,7 +230,7 @@ const startBroadcast = async (userId: string, streamId: string) => {
   await stream.save();
 
   // Increment host's total streams counter
-  await User.findByIdAndUpdate(userId, { $inc: { totalStreamsHosted: 1 } });
+  await User.findByIdAndUpdate(userId, { $inc: { totalStreamsHosted: 1, liveTouch: 1 } });
 
   // Update Redis Room State
   const stateKey = LIVE_STREAM_REDIS_KEYS.STREAM_STATE(streamId);

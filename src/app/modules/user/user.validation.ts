@@ -55,6 +55,9 @@ const updateProfileSchema = z.object({
 
     dob: z.string({ message: 'Date of birth is required' }).optional(),
     gender: z.enum(['male', 'female', 'other']).optional(),
+    giftGiven: z.number().optional(),
+    giftReceived: z.number().optional(),
+    liveTouch: z.number().optional(),
   }),
 });
 const completeProfileSchema = z.object({

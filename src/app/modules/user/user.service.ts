@@ -17,6 +17,10 @@ import { generateAndReturnTokens, verifyAppleToken, verifyGoogleToken } from '..
 import { RedisService, cacheService, cacheKeys, CACHE_TTL } from '../../redis';
 
 import { LOGIN_WITH } from '../auth/auth.constant';
+import { GiftItem } from '../GiftItem/giftItem.model';
+import { LiveStream } from '../LiveStream/liveStream.model';
+import { LiveStoryClaim } from '../StoryClaim/storyClaim.model';
+import { STORY_CLAIM_STATUS } from '../StoryClaim/storyClaim.constants';
 
 
 export type IFilter = {
@@ -373,32 +377,93 @@ const getUserById = async (id: string) => {
   return user;
 };
 
-// Optimized the function with Redis caching (Configurable TTL: 10 minutes)
+// Optimized profile fetch with real-time counters and Redis caching
 const getMyProfile = async (id: string, fields?: string) => {
+  // 1. Calculate live counts for gifts and streams
+  const [giftsGivenCount, claimedGiftsCount, awardedClaimsCount, liveStreamCount] = await Promise.all([
+    GiftItem.countDocuments({ host: id, isDeleted: false }),
+    GiftItem.countDocuments({ claimedBy: id }),
+    LiveStoryClaim.countDocuments({
+      applicant: id,
+      status: STORY_CLAIM_STATUS.AWARDED,
+    }),
+    LiveStream.countDocuments({ host: id, isDeleted: false }),
+  ]);
+
+  const calculatedReceived = Math.max(claimedGiftsCount, awardedClaimsCount);
+
+  // 2. Fetch existing user metrics to prevent regression
+  const existingUser = await User.findById(id).select(
+    'giftGiven giftReceived liveTouch totalGiftsGiven totalGiftsReceived totalStreamsHosted',
+  );
+
+  if (!existingUser) {
+    throw new AppError(httpStatus.NOT_FOUND, 'User not found');
+  }
+
+  const updatedGiftGiven = Math.max(
+    existingUser.giftGiven ?? 0,
+    existingUser.totalGiftsGiven ?? 0,
+    giftsGivenCount,
+  );
+  const updatedGiftReceived = Math.max(
+    existingUser.giftReceived ?? 0,
+    existingUser.totalGiftsReceived ?? 0,
+    calculatedReceived,
+  );
+  const updatedLiveTouch = Math.max(
+    existingUser.liveTouch ?? 0,
+    existingUser.totalStreamsHosted ?? 0,
+    liveStreamCount,
+  );
+
+  // 3. Update the user document in MongoDB with the latest counts
+  await User.findByIdAndUpdate(id, {
+    $set: {
+      giftGiven: updatedGiftGiven,
+      giftReceived: updatedGiftReceived,
+      liveTouch: updatedLiveTouch,
+    },
+  });
+
   // ✅ Default fields to include when no 'fields' query param is provided
-  const defaultFields = ['dob', 'gender', 'phone', 'address', 'profileImage', 'bio', 'role', 'email', 'fullName','address', 'isPhoneVerified', 'about', 'subscriptionExpiresAt', 'scriptGeneratedCount'];
+  const defaultFields = [
+    'dob',
+    'gender',
+    'phone',
+    'address',
+    'profileImage',
+    'bio',
+    'role',
+    'email',
+    'fullName',
+    'isPhoneVerified',
+    'about',
+    'subscriptionExpiresAt',
+    'scriptGeneratedCount',
+    'giftGiven',
+    'giftReceived',
+    'liveTouch',
+  ];
 
   // ✅ Determine which fields to select
   const selectFields = fields
-    ? fields.split(',').map(f => f.trim()).join(' ') // if fields provided, use only them
-    : defaultFields.join(' '); // otherwise, use defaults
+    ? fields.split(',').map((f) => f.trim()).join(' ')
+    : defaultFields.join(' ');
 
   const cacheKey = cacheKeys.userProfile(id, fields);
 
-  return await cacheService.getOrSet(
-    cacheKey,
-    async () => {
-      // ✅ Fetch user data from the database
-      const userData = await User.findById(id).select(selectFields);
+  // 4. Fetch the fresh profile data
+  const userData = await User.findById(id).select(selectFields);
 
-      if (!userData) {
-        throw new AppError(httpStatus.NOT_FOUND, 'User not found');
-      }
+  if (!userData) {
+    throw new AppError(httpStatus.NOT_FOUND, 'User not found');
+  }
 
-      return userData;
-    },
-    CACHE_TTL.TEN_MINUTES // 10 minutes TTL
-  );
+  // Update Redis cache with fresh data
+  await RedisService.set(cacheKey, userData, CACHE_TTL.TEN_MINUTES).catch(() => {});
+
+  return userData;
 };
 
 

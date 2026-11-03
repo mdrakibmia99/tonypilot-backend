@@ -657,12 +657,12 @@ const awardGiftLive = async (userId: string, claimId: string) => {
     // 8. Update Community Statistics
     await User.findByIdAndUpdate(
       userId,
-      { $inc: { totalGiftsGiven: 1 } },
+      { $inc: { totalGiftsGiven: 1, giftGiven: 1 } },
       { session },
     );
     await User.findByIdAndUpdate(
       claim.applicant,
-      { $inc: { totalGiftsReceived: 1 } },
+      { $inc: { totalGiftsReceived: 1, giftReceived: 1 } },
       { session },
     );
 
@@ -808,6 +808,43 @@ const getPickupInstructions = async (
   };
 };
 
+/**
+ * Get all stories created by the user (applicant) with pagination
+ */
+const getMyStoryClaims = async (
+  userId: string,
+  query: Record<string, any>,
+) => {
+  const baseQuery = LiveStoryClaim.find({
+    applicant: new Types.ObjectId(userId),
+    isDeleted: false,
+  })
+    .populate({
+      path: 'giftItem',
+      populate: {
+        path: 'host',
+        select: 'fullName profileImage neighborhoodLabel communityTrustScore',
+      },
+    })
+    .populate('stream')
+    .populate(
+      'applicant',
+      'fullName profileImage neighborhoodLabel communityTrustScore',
+    );
+
+  const claimQueryBuilder = new QueryBuilder(baseQuery, query)
+    .search(STORY_CLAIM_SEARCHABLE_FIELDS)
+    .filter()
+    .sort()
+    .paginate()
+    .fields();
+
+  const meta = await claimQueryBuilder.countTotal();
+  const data = await claimQueryBuilder.modelQuery;
+
+  return { meta, data };
+};
+
 export const StoryClaimService = {
   submitStoryClaim,
   getClaimsForStream,
@@ -817,4 +854,5 @@ export const StoryClaimService = {
   unpinStoryClaim,
   awardGiftLive,
   getPickupInstructions,
+  getMyStoryClaims,
 };

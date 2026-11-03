@@ -81,7 +81,7 @@ const createGiftItem = async (
   });
 
   // Increment user counter
-  await User.findByIdAndUpdate(userId, { $inc: { totalGiftsGiven: 1 } });
+  await User.findByIdAndUpdate(userId, { $inc: { totalGiftsGiven: 1, giftGiven: 1 } });
 
   // Invalidate discover cache
   await RedisService.del('gifts:featured');

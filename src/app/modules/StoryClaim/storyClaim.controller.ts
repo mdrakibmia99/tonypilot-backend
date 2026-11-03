@@ -134,6 +134,19 @@ const getPickupInstructions = catchAsync(async (req: Request, res: Response) => 
   });
 });
 
+const getMyStoryClaims = catchAsync(async (req: Request, res: Response) => {
+  const userId = req.user.userId;
+  const result = await StoryClaimService.getMyStoryClaims(userId, req.query);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'My story claims retrieved successfully',
+    meta: result.meta,
+    data: result.data,
+  });
+});
+
 export const StoryClaimController = {
   submitStoryClaim,
   getClaimsForStream,
@@ -143,4 +156,5 @@ export const StoryClaimController = {
   unpinStoryClaim,
   awardGiftLive,
   getPickupInstructions,
+  getMyStoryClaims,
 };

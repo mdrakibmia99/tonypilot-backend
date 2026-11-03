@@ -53,6 +53,9 @@ export interface TUser {
   totalGiftsReceived?: number;
   totalStreamsHosted?: number;
   totalStoriesClaimed?: number;
+  giftGiven?: number;
+  giftReceived?: number;
+  liveTouch?: number;
   neighborhoodLabel?: string;
   communityTrustScore?: number;
   agreedToRules?: boolean;
@@ -101,6 +104,9 @@ export interface TUserCreate {
   totalGiftsReceived?: number;
   totalStreamsHosted?: number;
   totalStoriesClaimed?: number;
+  giftGiven?: number;
+  giftReceived?: number;
+  liveTouch?: number;
   neighborhoodLabel?: string;
   communityTrustScore?: number;
   agreedToRules?: boolean;
