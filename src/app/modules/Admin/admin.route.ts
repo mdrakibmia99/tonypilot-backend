@@ -16,6 +16,12 @@ router.get(
   adminController.getTelemetryOverview,
 );
 
+router.get(
+  '/dashboard/overview',
+  auth(USER_ROLE.ADMIN, USER_ROLE.SUPER_ADMIN),
+  adminController.getTelemetryOverview,
+);
+
 // ==========================================
 // 2. LIVE STREAM ACTIVE CONTROL ROOM
 // ==========================================
