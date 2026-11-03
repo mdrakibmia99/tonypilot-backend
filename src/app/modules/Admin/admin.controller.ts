@@ -119,6 +119,17 @@ const getRevenueAnalytics = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const getGatewaySettlements = catchAsync(async (req: Request, res: Response) => {
+  const result = await adminService.getGatewaySettlements(req.query);
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Gateway settlements retrieved successfully',
+    meta: result.meta,
+    data: result.data,
+  });
+});
+
 const blockedUser = catchAsync(async (req: Request, res: Response) => {
   const result = await adminService.blockedUser(
     req.user as IJwtPayload,
@@ -175,6 +186,7 @@ export const adminController = {
   reviewStoryClaim,
   getAdminAuditLogs,
   getRevenueAnalytics,
+  getGatewaySettlements,
   getSupervisedUsers,
   getUserInspectionDetails,
   blockedUser,

@@ -98,6 +98,24 @@ router.get(
   adminController.getRevenueAnalytics,
 );
 
+router.get(
+  '/revenue/overview',
+  auth(USER_ROLE.ADMIN, USER_ROLE.SUPER_ADMIN),
+  adminController.getRevenueAnalytics,
+);
+
+router.get(
+  '/revenue',
+  auth(USER_ROLE.ADMIN, USER_ROLE.SUPER_ADMIN),
+  adminController.getRevenueAnalytics,
+);
+
+router.get(
+  '/revenue/settlements',
+  auth(USER_ROLE.ADMIN, USER_ROLE.SUPER_ADMIN),
+  adminController.getGatewaySettlements,
+);
+
 // ==========================================
 // LEGACY COMPATIBILITY
 // ==========================================
