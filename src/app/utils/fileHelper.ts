@@ -7,9 +7,7 @@ export const deleteFile = async (path: string) => {
   try {
     if (fs.existsSync(`../public/${path}`)) {
       await unlinkSync(`../public/${path}`);
-    } else {
-      console.log('not found');
-    }
+    } 
   } catch (err: any) {
     throw new Error(`Error deleting file: ${err.message}`);
   }
@@ -35,7 +33,6 @@ export const storeFiles = async (
     const result: { [fieldName: string]: string[] } = {};
 
     Object.entries(files).forEach(([fieldName, fileArray]) => {
-      console.log('storeFiles ->>> ', folderName, fileArray)
       result[fieldName] = fileArray.map(
         (file) => `/uploads/${folderName}/${file.filename}`
       );
