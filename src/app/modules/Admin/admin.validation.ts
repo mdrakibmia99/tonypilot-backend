@@ -65,6 +65,15 @@ export const userModerationActionZodSchema = z.object({
   }),
 });
 
+export const updateUserBlockStatusZodSchema = z.object({
+  params: z.object({
+    id: z
+      .string()
+      .min(1, 'User ID is required')
+      .refine(objectIdValidator, { message: 'Invalid User ObjectId format' }),
+  }),
+});
+
 export const reviewStoryClaimZodSchema = z.object({
   params: z.object({
     id: z
@@ -92,6 +101,7 @@ export const adminValidation = {
   forceTerminateStreamZodSchema,
   muteHostZodSchema,
   userModerationActionZodSchema,
+  updateUserBlockStatusZodSchema,
   reviewStoryClaimZodSchema,
   mongoIdParamZodSchema,
 };

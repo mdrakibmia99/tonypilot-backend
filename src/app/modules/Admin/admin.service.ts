@@ -1207,6 +1207,18 @@ const blockedUser = async (userData: IJwtPayload, targetId: string) => {
   });
 };
 
+const updateUserBlockStatus = async (targetId: string) => {
+  const user = await User.findById(targetId);
+  if (!user) {
+    throw new AppError(httpStatus.NOT_FOUND, 'User not found');
+  }
+
+  user.isBlocked = !user.isBlocked;
+  await user.save();
+
+  return user;
+};
+
 const deleteUser = async (userData: IJwtPayload, targetId: string) => {
   const user = await User.findById(targetId);
   if (!user) throw new AppError(httpStatus.NOT_FOUND, 'User not found');
@@ -1477,6 +1489,7 @@ export const adminService = {
   getGatewaySettlements,
   getSupervisedUsers,
   getUserInspectionDetails,
+  updateUserBlockStatus,
   blockedUser,
   deleteUser,
 };

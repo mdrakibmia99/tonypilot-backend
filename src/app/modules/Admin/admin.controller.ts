@@ -143,6 +143,16 @@ const blockedUser = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const updateUserBlockStatus = catchAsync(async (req: Request, res: Response) => {
+  const result = await adminService.updateUserBlockStatus(req.params.id as string);
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: `User ${result.isBlocked ? 'blocked' : 'unblocked'} successfully`,
+    data: result,
+  });
+});
+
 const deleteUser = catchAsync(async (req: Request, res: Response) => {
   const result = await adminService.deleteUser(
     req.user as IJwtPayload,
@@ -189,6 +199,7 @@ export const adminController = {
   getGatewaySettlements,
   getSupervisedUsers,
   getUserInspectionDetails,
+  updateUserBlockStatus,
   blockedUser,
   deleteUser,
 };

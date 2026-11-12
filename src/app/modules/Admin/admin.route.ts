@@ -54,6 +54,12 @@ router.patch(
   validateRequest(adminValidation.userModerationActionZodSchema),
   adminController.takeUserModerationAction,
 );
+router.patch(
+  '/users/:id/block-status',
+  auth(USER_ROLE.ADMIN, USER_ROLE.SUPER_ADMIN),
+  validateRequest(adminValidation.updateUserBlockStatusZodSchema),
+  adminController.updateUserBlockStatus,
+);
 router.get(
   '/users',
   auth(USER_ROLE.ADMIN, USER_ROLE.SUPER_ADMIN),
